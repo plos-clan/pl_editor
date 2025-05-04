@@ -26,8 +26,7 @@
 #define VT100_COLOR_MAGENTA "\x1b[35m"
 #define VT100_COLOR_CYAN "\x1b[36m"
 #define VT100_COLOR_WHITE "\x1b[37m"
-#define VT100_COLOR_DARK_GRAY "\x1b[90m"  /* Bright black = dark gray */
-#define VT100_COLOR_LIGHT_GRAY "\x1b[37m" /* White = light gray in many terminals */
+#define VT100_COLOR_DARK_GRAY "\x1b[0;90m"  /* Bright black = dark gray */
 
 /* Background colors */
 #define VT100_BG_BLACK "\x1b[40m"
@@ -38,7 +37,6 @@
 #define VT100_BG_MAGENTA "\x1b[45m"
 #define VT100_BG_CYAN "\x1b[46m"
 #define VT100_BG_WHITE "\x1b[47m"
-#define VT100_BG_DARK_GRAY "\x1b[100m" /* Bright black background = dark gray */
 
 /* Text formatting */
 #define VT100_BOLD "\x1b[1m"

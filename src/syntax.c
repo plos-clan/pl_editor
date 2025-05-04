@@ -15,7 +15,8 @@ char *C_HL_keywords[] = {
     /* C keywords */
     "switch", "if", "while", "for", "break", "continue", "return", "else",
     "struct", "union", "typedef", "static", "enum", "case", "#include",
-    "volatile", "register", "sizeof", "typedef", "const", "auto",
+    "#define", "#ifdef", "#ifndef", "#endif", "#pragma", "volatile",
+    "register", "sizeof", "typedef", "const", "auto",
 
     /* Types - keyword2 */
     "int|" , "long|", "double|", "float|", "char|", "unsigned|", "signed|",

@@ -263,15 +263,12 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
             /* Either it's an existing file line or it's the empty line right after
                the file that's currently being edited */
             if (is_file_line) {
-                /* Dark gray background for line numbers */
-                *len += sprintf(buffer + *len, VT100_BG_DARK_GRAY);
-
                 if (is_current_line) {
-                    /* Black background for current line */
-                    *len += sprintf(buffer + *len, VT100_BG_BLACK);
+                    /* White text for current line */
+                    *len += sprintf(buffer + *len, VT100_COLOR_WHITE);
                 } else {
                     /* Light gray text for other lines */
-                    *len += sprintf(buffer + *len, VT100_COLOR_LIGHT_GRAY);
+                    *len += sprintf(buffer + *len, VT100_COLOR_DARK_GRAY);
                 }
 
                 /* Format line number with correct padding */
@@ -281,9 +278,6 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
 
                 *len += sprintf(buffer + *len, VT100_COLOR_RESET);
             } else {
-                /* Draw empty line number area for blank lines */
-                *len += sprintf(buffer + *len, VT100_BG_DARK_GRAY);
-
                 /* Create padding with correct width */
                 char padding[20] = "";
                 for (int i = 0; i < line_number_width; i++) {
