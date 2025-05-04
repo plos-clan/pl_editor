@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 
     /* Set initial status message */
     pleditor_set_status_message(&state,
-        "HELP: Ctrl-S = save | Ctrl-Q = quit");
+        "HELP: Ctrl-S = save/save as | Ctrl-Q = quit");
 
     /* Main editor loop */
     while (1) {

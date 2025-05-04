@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 #include "syntax.h"
+#include "pleditor.h"
 
 /* C-like language keywords */
 char *C_HL_keywords[] = {

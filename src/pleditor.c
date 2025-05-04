@@ -12,6 +12,7 @@
 #include "pleditor.h"
 #include "terminal.h"
 #include "platform.h"
+#include "syntax.h"
 
 /* For calculating the render index from a chars index */
 int pleditor_cx_to_rx(pleditor_row *row, int cx) {
@@ -65,9 +66,8 @@ void pleditor_insert_row(pleditor_state *state, int at, char *s, size_t len) {
     state->rows[at].render = NULL;
     state->rows[at].hl = NULL;
     pleditor_update_row(&state->rows[at]);
-    
+
     /* Update highlighting for the row if syntax highlighting is enabled */
-    extern void pleditor_syntax_update_row(pleditor_state *state, int row_idx);
     if (state->syntax) {
         pleditor_syntax_update_row(state, at);
     }
@@ -102,23 +102,23 @@ void pleditor_insert_char(pleditor_state *state, int c) {
     if (iscntrl(c) && c != '\t') {
         return;
     }
-    
+
     if (state->cy == state->num_rows) {
         pleditor_insert_row(state, state->num_rows, "", 0);
     }
-    
+
     pleditor_row *row = &state->rows[state->cy];
     row->chars = realloc(row->chars, row->size + 2);
     memmove(&row->chars[state->cx + 1], &row->chars[state->cx], row->size - state->cx + 1);
     row->size++;
     row->chars[state->cx] = c;
     pleditor_update_row(row);
-    
+
     /* Update syntax highlighting for the modified row */
     if (state->syntax) {
         pleditor_syntax_update_row(state, state->cy);
     }
-    
+
     state->cx++;
     state->dirty = true;
 }
@@ -134,7 +134,7 @@ void pleditor_insert_newline(pleditor_state *state) {
         row->size = state->cx;
         row->chars[row->size] = '\0';
         pleditor_update_row(row);
-        
+
         /* Update syntax highlighting for the modified current row */
         if (state->syntax) {
             pleditor_syntax_update_row(state, state->cy);
@@ -155,12 +155,12 @@ void pleditor_delete_char(pleditor_state *state) {
         row->size--;
         state->cx--;
         pleditor_update_row(row);
-        
+
         /* Update syntax highlighting for the modified row */
         if (state->syntax) {
             pleditor_syntax_update_row(state, state->cy);
         }
-        
+
         state->dirty = true;
     } else {
         /* Backspace at start of line - append this line to previous line */
@@ -171,12 +171,12 @@ void pleditor_delete_char(pleditor_state *state) {
         prev_row->size += row->size;
         prev_row->chars[prev_row->size] = '\0';
         pleditor_update_row(prev_row);
-        
+
         /* Update syntax highlighting for the modified previous row */
         if (state->syntax) {
             pleditor_syntax_update_row(state, state->cy - 1);
         }
-        
+
         pleditor_delete_row(state, state->cy);
         state->cy--;
     }
@@ -241,25 +241,25 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
                 char *c = &state->rows[filerow].render[state->col_offset];
                 unsigned char *hl = NULL;
                 int current_color = -1;
-                
+
                 /* If this row has highlighting data */
                 if (state->rows[filerow].hl) {
                     hl = state->rows[filerow].hl->hl;
                 }
-                
+
                 for (int j = 0; j < len_to_display; j++) {
                     if (hl) {
                         int color = pleditor_syntax_color_to_vt100(hl[j]);
-                        
+
                         if (color != current_color) {
                             current_color = color;
                             *len += sprintf(buffer + *len, "\x1b[%dm", color);
                         }
                     }
-                    
+
                     buffer[(*len)++] = c[j];
                 }
-                
+
                 /* Reset text color at end of line */
                 *len += sprintf(buffer + *len, VT100_COLOR_RESET);
             }
@@ -280,13 +280,13 @@ void pleditor_draw_status_bar(pleditor_state *state, char *buffer, int *len) {
                              state->filename ? state->filename : "[No Name]",
                              state->num_rows,
                              state->dirty ? "(modified)" : "");
-    
+
     /* Add filetype information if available */
     char filetype[20] = "no ft";
     if (state->syntax) {
         snprintf(filetype, sizeof(filetype), "%s", state->syntax->filetype);
     }
-    
+
     int rstatus_len = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d ",
                               filetype, state->cy + 1, state->num_rows);
 
@@ -359,6 +359,58 @@ void pleditor_set_status_message(pleditor_state *state, const char *fmt, ...) {
     state->status_msg_time = pleditor_platform_get_time();
 }
 
+/**
+ * Display a prompt in the status bar and get input from the user
+ */
+char* pleditor_prompt(pleditor_state *state, const char *prompt) {
+    size_t bufsize = 128;
+    char *buf = malloc(bufsize);
+    if (!buf) return NULL;
+
+    size_t buflen = 0;
+    buf[0] = '\0';
+
+    while (1) {
+        /* Display the prompt and current input */
+        pleditor_set_status_message(state, "%s: %s", prompt, buf);
+        pleditor_refresh_screen(state);
+
+        int c = pleditor_platform_read_key(0);
+
+        if (c == PLEDITOR_DEL_KEY || c == PLEDITOR_KEY_BACKSPACE || c == PLEDITOR_CTRL_KEY('h')) {
+            /* Handle backspace/delete */
+            if (buflen > 0) {
+                buflen--;
+                buf[buflen] = '\0';
+            }
+        } else if (c == '\r' || c == '\n') {
+            /* Handle Enter/Return */
+            if (buflen != 0) {
+                pleditor_set_status_message(state, "");
+                return buf;
+            }
+        } else if (c == PLEDITOR_KEY_ESC) {
+            /* Handle Escape */
+            pleditor_set_status_message(state, "");
+            free(buf);
+            return NULL;
+        } else if (!iscntrl(c) && c < 128) {
+            /* Append character to buffer */
+            if (buflen == bufsize - 1) {
+                bufsize *= 2;
+                char *newbuf = realloc(buf, bufsize);
+                if (!newbuf) {
+                    free(buf);
+                    return NULL;
+                }
+                buf = newbuf;
+            }
+            buf[buflen++] = c;
+            buf[buflen] = '\0';
+        }
+    }
+}
+
 /* Move the cursor based on key press */
 void pleditor_move_cursor(pleditor_state *state, int key) {
     pleditor_row *row = (state->cy >= state->num_rows) ? NULL : &state->rows[state->cy];
@@ -403,9 +455,23 @@ void pleditor_move_cursor(pleditor_state *state, int key) {
 
 /* Save the current file */
 void pleditor_save(pleditor_state *state) {
+    /* If no filename set, prompt the user for one */
     if (state->filename == NULL) {
-        pleditor_set_status_message(state, "Cannot save: no filename");
-        return;
+        char *filename = pleditor_prompt(state, "Save as");
+        if (filename == NULL) {
+            pleditor_set_status_message(state, "Save aborted");
+            return;
+        }
+        free(state->filename); /* In case it was previously set */
+        state->filename = filename;
+
+        /* Select syntax highlighting based on new filename */
+        pleditor_syntax_select_by_filename(state, state->filename);
+
+        /* Apply highlighting if a syntax was selected */
+        if (state->syntax) {
+            pleditor_syntax_update_all(state);
+        }
     }
 
     /* Create a single string of entire file */
@@ -533,13 +599,13 @@ void pleditor_init(pleditor_state *state) {
     state->status_msg[0] = '\0';
     state->status_msg_time = 0;
     state->syntax = NULL;  /* No syntax highlighting by default */
-    
+
     if (!pleditor_platform_get_window_size(&state->screen_rows, &state->screen_cols)) {
         /* Fallback if window size detection fails */
         state->screen_rows = 24;
         state->screen_cols = 80;
     }
-    
+
     /* Leave room for status line and message bar */
     state->screen_rows -= 2;
 }
@@ -548,24 +614,29 @@ void pleditor_init(pleditor_state *state) {
 void pleditor_open(pleditor_state *state, const char *filename) {
     free(state->filename);
     state->filename = strdup(filename);
-    
+
     char *buffer;
     size_t len;
-    
+
     if (!pleditor_platform_read_file(filename, &buffer, &len)) {
         pleditor_set_status_message(state, "New file: %s", filename);
+
+        /* Select syntax highlighting based on filename even for new files */
+        pleditor_syntax_select_by_filename(state, filename);
+
+        /* No rows to highlight yet, but set up the syntax for future input */
         return;
     }
-    
+
     /* Parse the file contents into rows */
     char *line = buffer;
     char *end = buffer + len;
     char *eol;
-    
+
     while (line < end) {
         /* Find the end of the current line */
         eol = strchr(line, '\n');
-        
+
         size_t line_length;
         if (eol) {
             line_length = eol - line;
@@ -574,22 +645,20 @@ void pleditor_open(pleditor_state *state, const char *filename) {
             line_length = end - line;
             eol = end;
         }
-        
+
         /* Add the line to our rows */
         pleditor_insert_row(state, state->num_rows, line, line_length);
-        
+
         line = eol;
     }
-    
+
     free(buffer);
     state->dirty = false;
-    
+
     /* Select syntax highlighting based on filename */
-    extern void pleditor_syntax_select_by_filename(pleditor_state *state, const char *filename);
     pleditor_syntax_select_by_filename(state, filename);
-    
+
     /* Apply syntax highlighting to all rows */
-    extern void pleditor_syntax_update_all(pleditor_state *state);
     pleditor_syntax_update_all(state);
 }
 

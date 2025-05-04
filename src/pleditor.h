@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
 
 /* Editor config */
 #define PLEDITOR_VERSION "0.1.0"
@@ -100,13 +101,8 @@ void pleditor_insert_newline(pleditor_state *state);
 
 void pleditor_refresh_screen(pleditor_state *state);
 void pleditor_set_status_message(pleditor_state *state, const char *fmt, ...);
+char* pleditor_prompt(pleditor_state *state, const char *prompt);
 void pleditor_move_cursor(pleditor_state *state, int key);
 void pleditor_process_keypress(pleditor_state *state, int c);
-
-/* Syntax highlighting functions */
-void pleditor_syntax_select_by_filename(pleditor_state *state, const char *filename);
-void pleditor_syntax_update_row(pleditor_state *state, int row_idx);
-int pleditor_syntax_color_to_vt100(int hl);
-bool pleditor_syntax_init(pleditor_state *state);
 
 #endif /* PLEDITOR_H */
