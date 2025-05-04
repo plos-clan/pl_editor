@@ -180,6 +180,41 @@ void pleditor_delete_char(pleditor_state *state) {
     }
 }
 
+/* Calculate the number of digits in a given number */
+int digit_count(int number) {
+    if (number <= 0) return 1; /* Handle 0 and negative cases */
+
+    int count = 0;
+    while (number > 0) {
+        number /= 10;
+        count++;
+    }
+    return count;
+}
+
+/* Calculate the width needed for line numbers (digits + space) */
+int pleditor_get_line_number_width(pleditor_state *state) {
+    if (!state->show_line_numbers) {
+        return 0;
+    }
+
+    /* Calculate the maximum visible line number on screen */
+    int max_visible_line = state->row_offset + state->screen_rows;
+    if (max_visible_line > state->num_rows) {
+        max_visible_line = state->num_rows;
+    }
+
+    /* At least show single digit + space */
+    int line_number_width = digit_count(max_visible_line) + 1;
+
+    /* Ensure minimum of 2 characters wide + space */
+    if (line_number_width < 3) {
+        line_number_width = 3;
+    }
+
+    return line_number_width;
+}
+
 /* Scroll the editor if cursor is outside visible area */
 void pleditor_scroll(pleditor_state *state) {
     state->rx = 0;
@@ -200,7 +235,7 @@ void pleditor_scroll(pleditor_state *state) {
      * accounting for line number display width if enabled */
     int effective_screen_width = state->screen_cols;
     if (state->show_line_numbers) {
-        effective_screen_width -= 5; /* 5 = width of line numbers (4 digits + space) */
+        effective_screen_width -= pleditor_get_line_number_width(state);
     }
 
     if (state->rx < state->col_offset) {
@@ -218,15 +253,44 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
 
         /* Draw line numbers if enabled */
         if (state->show_line_numbers) {
-            if (filerow < state->num_rows) {
-                /* Draw line number with background color */
-                *len += sprintf(buffer + *len, VT100_INVERSE);
-                *len += sprintf(buffer + *len, "%4d ", filerow + 1);
+            int line_number_width = pleditor_get_line_number_width(state);
+            int digits = line_number_width - 1; /* Subtract space */
+
+            /* Check if this is a file line or the empty line being edited */
+            bool is_file_line = filerow <= state->num_rows;
+            bool is_current_line = filerow == state->cy;
+
+            /* Either it's an existing file line or it's the empty line right after
+               the file that's currently being edited */
+            if (is_file_line) {
+                /* Dark gray background for line numbers */
+                *len += sprintf(buffer + *len, VT100_BG_DARK_GRAY);
+
+                if (is_current_line) {
+                    /* Black background for current line */
+                    *len += sprintf(buffer + *len, VT100_BG_BLACK);
+                } else {
+                    /* Light gray text for other lines */
+                    *len += sprintf(buffer + *len, VT100_COLOR_LIGHT_GRAY);
+                }
+
+                /* Format line number with correct padding */
+                char format[20];
+                sprintf(format, "%%%dd ", digits);
+                *len += sprintf(buffer + *len, format, filerow + 1);
+
                 *len += sprintf(buffer + *len, VT100_COLOR_RESET);
             } else {
                 /* Draw empty line number area for blank lines */
-                *len += sprintf(buffer + *len, VT100_INVERSE);
-                *len += sprintf(buffer + *len, "     ");
+                *len += sprintf(buffer + *len, VT100_BG_DARK_GRAY);
+
+                /* Create padding with correct width */
+                char padding[20] = "";
+                for (int i = 0; i < line_number_width; i++) {
+                    strcat(padding, " ");
+                }
+                *len += sprintf(buffer + *len, "%s", padding);
+
                 *len += sprintf(buffer + *len, VT100_COLOR_RESET);
             }
         }
@@ -242,7 +306,7 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
                 /* Center the welcome message */
                 int available_width = state->screen_cols;
                 if (state->show_line_numbers) {
-                    available_width -= 5; /* 5 = width of line numbers (4 digits + space) */
+                    available_width -= pleditor_get_line_number_width(state);
                 }
                 int padding = (available_width - welcomelen) / 2;
                 if (padding) {
@@ -260,9 +324,9 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
             /* Calculate available width for text after accounting for line numbers */
             int available_width = state->screen_cols;
             if (state->show_line_numbers) {
-                available_width -= 5; /* 5 = width of line numbers (4 digits + space) */
+                available_width -= pleditor_get_line_number_width(state);
             }
-            
+
             int len_to_display = state->rows[filerow].render_size - state->col_offset;
             if (len_to_display < 0) len_to_display = 0;
             if (len_to_display > available_width) len_to_display = available_width;
@@ -271,25 +335,25 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
                 char *c = &state->rows[filerow].render[state->col_offset];
                 unsigned char *hl = NULL;
                 int current_color = -1;
-                
+
                 /* If this row has highlighting data */
                 if (state->rows[filerow].hl) {
                     hl = state->rows[filerow].hl->hl;
                 }
-                
+
                 for (int j = 0; j < len_to_display; j++) {
                     if (hl) {
                         int color = pleditor_syntax_color_to_vt100(hl[j]);
-                        
+
                         if (color != current_color) {
                             current_color = color;
                             *len += sprintf(buffer + *len, "\x1b[%dm", color);
                         }
                     }
-                    
+
                     buffer[(*len)++] = c[j];
                 }
-                
+
                 /* Reset text color at end of line */
                 *len += sprintf(buffer + *len, VT100_COLOR_RESET);
             }
@@ -368,12 +432,12 @@ void pleditor_refresh_screen(pleditor_state *state) {
     /* Position cursor */
     char cursor_pos[32];
     int cursor_screen_x = state->rx - state->col_offset + 1;
-    
+
     /* Add offset for line numbers if enabled */
     if (state->show_line_numbers) {
-        cursor_screen_x += 5; /* 5 = width of line numbers (4 digits + space) */
+        cursor_screen_x += pleditor_get_line_number_width(state);
     }
-    
+
     cursor_position(state->cy - state->row_offset + 1, cursor_screen_x, cursor_pos);
     len += sprintf(buffer + len, "%s", cursor_pos);
 
@@ -499,10 +563,10 @@ void pleditor_save(pleditor_state *state) {
         }
         free(state->filename); /* In case it was previously set */
         state->filename = filename;
-        
+
         /* Select syntax highlighting based on new filename */
         pleditor_syntax_select_by_filename(state, state->filename);
-        
+
         /* Apply highlighting if a syntax was selected */
         if (state->syntax) {
             pleditor_syntax_update_all(state);
@@ -559,7 +623,7 @@ void pleditor_process_keypress(pleditor_state *state, int c) {
         case PLEDITOR_CTRL_KEY('r'):
             state->show_line_numbers = !state->show_line_numbers;
             /* Update status message to show current line number state */
-            pleditor_set_status_message(state, "Line numbers: %s", 
+            pleditor_set_status_message(state, "Line numbers: %s",
                                      state->show_line_numbers ? "ON" : "OFF");
             break;
 
@@ -647,7 +711,7 @@ void pleditor_init(pleditor_state *state) {
         state->screen_rows = 24;
         state->screen_cols = 80;
     }
-    
+
     /* Leave room for status line and message bar */
     state->screen_rows -= 2;
 }
@@ -655,7 +719,7 @@ void pleditor_init(pleditor_state *state) {
 /* Open a file in the editor */
 void pleditor_open(pleditor_state *state, const char *filename) {
     free(state->filename);
-    
+
     /* Use malloc and strcpy instead of strdup */
     size_t filename_len = strlen(filename) + 1; /* +1 for the null terminator */
     state->filename = malloc(filename_len);

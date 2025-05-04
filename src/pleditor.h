@@ -103,6 +103,7 @@ void pleditor_insert_newline(pleditor_state *state);
 void pleditor_refresh_screen(pleditor_state *state);
 void pleditor_set_status_message(pleditor_state *state, const char *fmt, ...);
 char* pleditor_prompt(pleditor_state *state, const char *prompt);
+int pleditor_get_line_number_width(pleditor_state *state);
 void pleditor_move_cursor(pleditor_state *state, int key);
 void pleditor_process_keypress(pleditor_state *state, int c);
 
