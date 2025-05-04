@@ -25,6 +25,22 @@ char *C_HL_keywords[] = {
     NULL
 };
 
+/* Lua language keywords */
+char *LUA_HL_keywords[] = {
+    /* Lua keywords */
+    "function", "local", "if", "then", "else", "elseif", "end", "while",
+    "do", "for", "repeat", "until", "break", "return", "in", "and", "or", "not",
+
+    /* Lua built-in values */
+    "true|", "false|", "nil|",
+
+    /* Lua built-in functions */
+    "print|", "pairs|", "ipairs|", "type|", "tonumber|", "tostring|", "require|",
+    "table|", "string|", "math|", "os|", "io|", "coroutine|", "error|", "assert|",
+
+    NULL
+};
+
 /* Syntax definitions */
 pleditor_syntax HLDB[] = {
     /* C-like language */
@@ -37,13 +53,24 @@ pleditor_syntax HLDB[] = {
         "*/", /* Multi-line comment end */
         0      /* Flags */
     },
+    /* Lua language */
+    {
+        "lua",
+        (char*[]){"lua", NULL},
+        LUA_HL_keywords,
+        "--", /* Single line comment start */
+        "--[[", /* Multi-line comment start */
+        "]]", /* Multi-line comment end */
+        0      /* Flags */
+    },
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /* Is the character a separator */
 bool is_separator(int c) {
-    return c == '\0' || isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];\\{}", c) != NULL;
+    return c == '\0' || isspace(c) || c == '\0' ||
+    strchr(",.()+-/*=~%<>[];\\{}", c) != NULL;
 }
 
 /* Select syntax highlighting based on file extension */
@@ -154,9 +181,12 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
             break;
         }
 
-        /* String start */
-        if (c == '"' || c == '\'') {
-            in_string = c;
+        /* String start or include brackets <> */
+        if (c == '"' || c == '\'' ||
+            (c == '<' && prev_sep && strstr(row->render, "#include") != NULL)) {
+            /* Set appropriate closing character */
+            char closing = (c == '<') ? '>' : c;
+            in_string = closing;
             row->hl->hl[i] = HL_STRING;
             i++;
             continue;
@@ -231,7 +261,7 @@ bool pleditor_syntax_init(pleditor_state *state) {
     /* Select syntax by filename if there is one */
     if (state->filename) {
         pleditor_syntax_select_by_filename(state, state->filename);
-        
+
         /* Apply syntax highlighting to all rows */
         pleditor_syntax_update_all(state);
     }
@@ -242,7 +272,7 @@ bool pleditor_syntax_init(pleditor_state *state) {
 /* Apply syntax highlighting to all rows in the file */
 void pleditor_syntax_update_all(pleditor_state *state) {
     if (!state->syntax) return;
-    
+
     for (int i = 0; i < state->num_rows; i++) {
         pleditor_syntax_update_row(state, i);
     }
