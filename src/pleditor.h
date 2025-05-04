@@ -87,6 +87,7 @@ typedef struct pleditor_state {
     char status_msg[80];    /* Status message */
     time_t status_msg_time; /* Time when status was set */
     pleditor_syntax *syntax; /* Current syntax highlighting */
+    bool show_line_numbers; /* Whether to display line numbers */
 } pleditor_state;
 
 /* Function prototypes */
