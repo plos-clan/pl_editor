@@ -4,6 +4,8 @@
 #ifndef TERMINAL_H
 #define TERMINAL_H
 
+#include <stdio.h>
+
 /* VT100 Terminal Control Sequences */
 #define VT100_CLEAR_SCREEN "\x1b[2J"
 #define VT100_CLEAR_LINE "\x1b[K"

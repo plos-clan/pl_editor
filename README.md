@@ -1,4 +1,4 @@
-# pleditor - VT100-based Text Editor
+# pleditor
 
 pleditor is a simple text editor that works with terminal devices supporting VT100 escape sequences. The core editor functionality is platform-independent, while platform-specific functionality is abstracted through a clean interface.
 

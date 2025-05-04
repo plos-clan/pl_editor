@@ -63,7 +63,14 @@ void pleditor_insert_row(pleditor_state *state, int at, char *s, size_t len) {
 
     state->rows[at].render_size = 0;
     state->rows[at].render = NULL;
+    state->rows[at].hl = NULL;
     pleditor_update_row(&state->rows[at]);
+    
+    /* Update highlighting for the row if syntax highlighting is enabled */
+    extern void pleditor_syntax_update_row(pleditor_state *state, int row_idx);
+    if (state->syntax) {
+        pleditor_syntax_update_row(state, at);
+    }
 
     state->num_rows++;
     state->dirty = true;
@@ -73,6 +80,11 @@ void pleditor_insert_row(pleditor_state *state, int at, char *s, size_t len) {
 void pleditor_free_row(pleditor_row *row) {
     free(row->render);
     free(row->chars);
+    /* Free highlighting memory if allocated */
+    if (row->hl) {
+        free(row->hl->hl);
+        free(row->hl);
+    }
 }
 
 /* Delete a row at the specified position */
@@ -101,6 +113,12 @@ void pleditor_insert_char(pleditor_state *state, int c) {
     row->size++;
     row->chars[state->cx] = c;
     pleditor_update_row(row);
+    
+    /* Update syntax highlighting for the modified row */
+    if (state->syntax) {
+        pleditor_syntax_update_row(state, state->cy);
+    }
+    
     state->cx++;
     state->dirty = true;
 }
@@ -116,6 +134,11 @@ void pleditor_insert_newline(pleditor_state *state) {
         row->size = state->cx;
         row->chars[row->size] = '\0';
         pleditor_update_row(row);
+        
+        /* Update syntax highlighting for the modified current row */
+        if (state->syntax) {
+            pleditor_syntax_update_row(state, state->cy);
+        }
     }
     state->cy++;
     state->cx = 0;
@@ -132,6 +155,12 @@ void pleditor_delete_char(pleditor_state *state) {
         row->size--;
         state->cx--;
         pleditor_update_row(row);
+        
+        /* Update syntax highlighting for the modified row */
+        if (state->syntax) {
+            pleditor_syntax_update_row(state, state->cy);
+        }
+        
         state->dirty = true;
     } else {
         /* Backspace at start of line - append this line to previous line */
@@ -142,6 +171,12 @@ void pleditor_delete_char(pleditor_state *state) {
         prev_row->size += row->size;
         prev_row->chars[prev_row->size] = '\0';
         pleditor_update_row(prev_row);
+        
+        /* Update syntax highlighting for the modified previous row */
+        if (state->syntax) {
+            pleditor_syntax_update_row(state, state->cy - 1);
+        }
+        
         pleditor_delete_row(state, state->cy);
         state->cy--;
     }
@@ -203,10 +238,30 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
             if (len_to_display > state->screen_cols) len_to_display = state->screen_cols;
 
             if (len_to_display > 0) {
-                memcpy(buffer + *len,
-                       &state->rows[filerow].render[state->col_offset],
-                       len_to_display);
-                *len += len_to_display;
+                char *c = &state->rows[filerow].render[state->col_offset];
+                unsigned char *hl = NULL;
+                int current_color = -1;
+                
+                /* If this row has highlighting data */
+                if (state->rows[filerow].hl) {
+                    hl = state->rows[filerow].hl->hl;
+                }
+                
+                for (int j = 0; j < len_to_display; j++) {
+                    if (hl) {
+                        int color = pleditor_syntax_color_to_vt100(hl[j]);
+                        
+                        if (color != current_color) {
+                            current_color = color;
+                            *len += sprintf(buffer + *len, "\x1b[%dm", color);
+                        }
+                    }
+                    
+                    buffer[(*len)++] = c[j];
+                }
+                
+                /* Reset text color at end of line */
+                *len += sprintf(buffer + *len, VT100_COLOR_RESET);
             }
         }
 
@@ -225,8 +280,15 @@ void pleditor_draw_status_bar(pleditor_state *state, char *buffer, int *len) {
                              state->filename ? state->filename : "[No Name]",
                              state->num_rows,
                              state->dirty ? "(modified)" : "");
-    int rstatus_len = snprintf(rstatus, sizeof(rstatus), "%d/%d ",
-                              state->cy + 1, state->num_rows);
+    
+    /* Add filetype information if available */
+    char filetype[20] = "no ft";
+    if (state->syntax) {
+        snprintf(filetype, sizeof(filetype), "%s", state->syntax->filetype);
+    }
+    
+    int rstatus_len = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d ",
+                              filetype, state->cy + 1, state->num_rows);
 
     if (status_len > state->screen_cols) status_len = state->screen_cols;
     *len += sprintf(buffer + *len, "%s", status);
@@ -470,13 +532,14 @@ void pleditor_init(pleditor_state *state) {
     state->filename = NULL;
     state->status_msg[0] = '\0';
     state->status_msg_time = 0;
-
+    state->syntax = NULL;  /* No syntax highlighting by default */
+    
     if (!pleditor_platform_get_window_size(&state->screen_rows, &state->screen_cols)) {
         /* Fallback if window size detection fails */
         state->screen_rows = 24;
         state->screen_cols = 80;
     }
-
+    
     /* Leave room for status line and message bar */
     state->screen_rows -= 2;
 }
@@ -485,24 +548,24 @@ void pleditor_init(pleditor_state *state) {
 void pleditor_open(pleditor_state *state, const char *filename) {
     free(state->filename);
     state->filename = strdup(filename);
-
+    
     char *buffer;
     size_t len;
-
+    
     if (!pleditor_platform_read_file(filename, &buffer, &len)) {
         pleditor_set_status_message(state, "New file: %s", filename);
         return;
     }
-
+    
     /* Parse the file contents into rows */
     char *line = buffer;
     char *end = buffer + len;
     char *eol;
-
+    
     while (line < end) {
         /* Find the end of the current line */
         eol = strchr(line, '\n');
-
+        
         size_t line_length;
         if (eol) {
             line_length = eol - line;
@@ -511,15 +574,23 @@ void pleditor_open(pleditor_state *state, const char *filename) {
             line_length = end - line;
             eol = end;
         }
-
+        
         /* Add the line to our rows */
         pleditor_insert_row(state, state->num_rows, line, line_length);
-
+        
         line = eol;
     }
-
+    
     free(buffer);
     state->dirty = false;
+    
+    /* Select syntax highlighting based on filename */
+    extern void pleditor_syntax_select_by_filename(pleditor_state *state, const char *filename);
+    pleditor_syntax_select_by_filename(state, filename);
+    
+    /* Apply syntax highlighting to all rows */
+    extern void pleditor_syntax_update_all(pleditor_state *state);
+    pleditor_syntax_update_all(state);
 }
 
 /* Free editor resources */

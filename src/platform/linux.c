@@ -29,6 +29,9 @@ bool pleditor_platform_init(void) {
         return false;
     }
 
+    /* Switch to alternate screen buffer */
+    write(STDOUT_FILENO, "\033[?1049h", 8);
+
     struct termios raw = orig_termios;
     
     /* Input flags: disable break signal, disable CR to NL translation, 
@@ -61,6 +64,10 @@ bool pleditor_platform_init(void) {
  * Restore terminal settings
  */
 void pleditor_platform_cleanup(void) {
+    /* Return to normal screen buffer */
+    write(STDOUT_FILENO, "\033[?1049l", 8);
+    
+    /* Restore original terminal settings */
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
