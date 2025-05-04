@@ -17,8 +17,7 @@
 /* For calculating the render index from a chars index */
 int pleditor_cx_to_rx(pleditor_row *row, int cx) {
     int rx = 0;
-    int j;
-    for (j = 0; j < cx; j++) {
+    for (int j = 0; j < cx; j++) {
         if (row->chars[j] == '\t')
             rx += (PLEDITOR_TAB_STOP - 1) - (rx % PLEDITOR_TAB_STOP);
         rx++;
@@ -29,8 +28,7 @@ int pleditor_cx_to_rx(pleditor_row *row, int cx) {
 /* Update the render string for a row (for handling tabs, etc.) */
 void pleditor_update_row(pleditor_row *row) {
     int tabs = 0;
-    int j;
-    for (j = 0; j < row->size; j++)
+    for (int j = 0; j < row->size; j++)
         if (row->chars[j] == '\t') tabs++;
 
     free(row->render);
@@ -38,7 +36,7 @@ void pleditor_update_row(pleditor_row *row) {
     if (row->render == NULL) exit(1);
 
     int idx = 0;
-    for (j = 0; j < row->size; j++) {
+    for (int j = 0; j < row->size; j++) {
         if (row->chars[j] == '\t') {
             row->render[idx++] = ' ';
             while (idx % PLEDITOR_TAB_STOP != 0) row->render[idx++] = ' ';
@@ -208,8 +206,7 @@ void pleditor_scroll(pleditor_state *state) {
 
 /* Draw a row of the editor */
 void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
-    int y;
-    for (y = 0; y < state->screen_rows - 1; y++) {
+    for (int y = 0; y < state->screen_rows; y++) {
         int filerow = y + state->row_offset;
         if (filerow >= state->num_rows) {
             /* Draw welcome message or tilde for empty lines */
@@ -241,25 +238,25 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
                 char *c = &state->rows[filerow].render[state->col_offset];
                 unsigned char *hl = NULL;
                 int current_color = -1;
-
+                
                 /* If this row has highlighting data */
                 if (state->rows[filerow].hl) {
                     hl = state->rows[filerow].hl->hl;
                 }
-
+                
                 for (int j = 0; j < len_to_display; j++) {
                     if (hl) {
                         int color = pleditor_syntax_color_to_vt100(hl[j]);
-
+                        
                         if (color != current_color) {
                             current_color = color;
                             *len += sprintf(buffer + *len, "\x1b[%dm", color);
                         }
                     }
-
+                    
                     buffer[(*len)++] = c[j];
                 }
-
+                
                 /* Reset text color at end of line */
                 *len += sprintf(buffer + *len, VT100_COLOR_RESET);
             }
@@ -464,10 +461,10 @@ void pleditor_save(pleditor_state *state) {
         }
         free(state->filename); /* In case it was previously set */
         state->filename = filename;
-
+        
         /* Select syntax highlighting based on new filename */
         pleditor_syntax_select_by_filename(state, state->filename);
-
+        
         /* Apply highlighting if a syntax was selected */
         if (state->syntax) {
             pleditor_syntax_update_all(state);
@@ -476,13 +473,12 @@ void pleditor_save(pleditor_state *state) {
 
     /* Create a single string of entire file */
     int totlen = 0;
-    int i;
-    for (i = 0; i < state->num_rows; i++)
+    for (int i = 0; i < state->num_rows; i++)
         totlen += state->rows[i].size + 1; /* +1 for newline */
 
     char *buf = malloc(totlen + 1);
     char *p = buf;
-    for (i = 0; i < state->num_rows; i++) {
+    for (int i = 0; i < state->num_rows; i++) {
         memcpy(p, state->rows[i].chars, state->rows[i].size);
         p += state->rows[i].size;
         *p = '\n';
@@ -613,7 +609,15 @@ void pleditor_init(pleditor_state *state) {
 /* Open a file in the editor */
 void pleditor_open(pleditor_state *state, const char *filename) {
     free(state->filename);
-    state->filename = strdup(filename);
+    
+    /* Use malloc and strcpy instead of strdup */
+    size_t filename_len = strlen(filename) + 1; /* +1 for the null terminator */
+    state->filename = malloc(filename_len);
+    if (state->filename == NULL) {
+        pleditor_set_status_message(state, "Error: Memory allocation failed");
+        return;
+    }
+    strcpy(state->filename, filename);
 
     char *buffer;
     size_t len;

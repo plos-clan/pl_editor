@@ -203,8 +203,8 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
 
         /* Keyword handling */
         if (prev_sep) {
-            int j;
-            for (j = 0; keywords[j]; j++) {
+            bool found_keyword = false;
+            for (int j = 0; keywords[j]; j++) {
                 int klen = strlen(keywords[j]);
                 bool is_kw2 = keywords[j][klen-1] == '|';
                 if (is_kw2) klen--;
@@ -216,10 +216,12 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
                     for (int k = 0; k < klen; k++)
                         row->hl->hl[i+k] = is_kw2 ? HL_KEYWORD2 : HL_KEYWORD1;
                     i += klen;
+                    found_keyword = true;
                     break;
                 }
             }
-            if (keywords[j] != NULL) {
+            
+            if (found_keyword) {
                 prev_sep = false;
                 continue;
             }
