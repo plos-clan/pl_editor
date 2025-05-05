@@ -101,6 +101,17 @@ void pleditor_insert_char(pleditor_state *state, int c) {
         return;
     }
 
+    /* Record the operation for undo - store the character being inserted */
+    pleditor_undo_params params = {
+        .type = UNDO_INSERT_CHAR,
+        .cx = state->cx,
+        .cy = state->cy,
+        .character = c,
+        .line = NULL,
+        .line_size = 0
+    };
+    pleditor_push_undo(state, &params);
+
     if (state->cy == state->num_rows) {
         pleditor_insert_row(state, state->num_rows, "", 0);
     }
@@ -123,6 +134,33 @@ void pleditor_insert_char(pleditor_state *state, int c) {
 
 /* Insert a newline (Enter key) */
 void pleditor_insert_newline(pleditor_state *state) {
+    /* Before inserting a newline, we save information about the current row for undo */
+    if (state->cy < state->num_rows) {
+        pleditor_row *row = &state->rows[state->cy];
+        
+        /* Store a copy of the entire row for undoing properly */
+        pleditor_undo_params params = {
+            .type = UNDO_INSERT_LINE,
+            .cx = state->cx,
+            .cy = state->cy,
+            .character = 0,
+            .line = row->chars,
+            .line_size = row->size
+        };
+        pleditor_push_undo(state, &params);
+    } else {
+        /* If we're at the end of the file, just record the position */
+        pleditor_undo_params params = {
+            .type = UNDO_INSERT_LINE,
+            .cx = state->cx,
+            .cy = state->cy,
+            .character = 0,
+            .line = NULL,
+            .line_size = 0
+        };
+        pleditor_push_undo(state, &params);
+    }
+    
     if (state->cx == 0) {
         pleditor_insert_row(state, state->cy, "", 0);
     } else {
@@ -149,6 +187,18 @@ void pleditor_delete_char(pleditor_state *state) {
 
     pleditor_row *row = &state->rows[state->cy];
     if (state->cx > 0) {
+        /* Record the operation for undo - save the character that will be deleted */
+        int del_char = row->chars[state->cx - 1];
+        pleditor_undo_params params = {
+            .type = UNDO_DELETE_CHAR,
+            .cx = state->cx - 1,
+            .cy = state->cy,
+            .character = del_char,
+            .line = NULL,
+            .line_size = 0
+        };
+        pleditor_push_undo(state, &params);
+        
         memmove(&row->chars[state->cx - 1], &row->chars[state->cx], row->size - state->cx + 1);
         row->size--;
         state->cx--;
@@ -161,8 +211,19 @@ void pleditor_delete_char(pleditor_state *state) {
 
         state->dirty = true;
     } else {
-        /* Backspace at start of line - append this line to previous line */
+        /* Backspace at start of line - save the current row for undo before merging */
+        /* We need to adjust cursor position for undo to beginning of previous row */
         state->cx = state->rows[state->cy - 1].size;
+        pleditor_undo_params params = {
+            .type = UNDO_DELETE_LINE,
+            .cx = 0,
+            .cy = state->cy,
+            .character = 0,
+            .line = row->chars,
+            .line_size = row->size
+        };
+        pleditor_push_undo(state, &params);
+        
         pleditor_row *prev_row = &state->rows[state->cy - 1];
         prev_row->chars = realloc(prev_row->chars, prev_row->size + row->size + 1);
         memcpy(&prev_row->chars[prev_row->size], row->chars, row->size);
@@ -624,6 +685,10 @@ void pleditor_process_keypress(pleditor_state *state, int c) {
             pleditor_set_status_message(state, "Line numbers: %s",
                                      state->show_line_numbers ? "ON" : "OFF");
             break;
+            
+        case PLEDITOR_CTRL_KEY('z'):
+            pleditor_perform_undo(state);
+            break;
 
         case PLEDITOR_KEY_BACKSPACE:
         case PLEDITOR_CTRL_KEY('h'):
@@ -702,6 +767,8 @@ void pleditor_init(pleditor_state *state) {
     state->status_msg[0] = '\0';
     state->syntax = NULL;  /* No syntax highlighting by default */
     state->show_line_numbers = true; /* Line numbers enabled by default */
+    state->undo_stack = NULL; /* Initialize the undo stack */
+    state->is_undoing = false; /* Initialize undoing flag */
 
     if (!pleditor_platform_get_window_size(&state->screen_rows, &state->screen_cols)) {
         /* Fallback if window size detection fails */
@@ -780,4 +847,164 @@ void pleditor_free(pleditor_state *state) {
     }
     free(state->rows);
     free(state->filename);
+    pleditor_free_undo_stack(state);
+}
+
+/* Undo functions */
+
+void pleditor_push_undo(pleditor_state *state, const pleditor_undo_params *params) {
+    /* Don't record undo operations while performing an undo */
+    if (state->is_undoing) return;
+    
+    pleditor_undo_operation *op = malloc(sizeof(pleditor_undo_operation));
+    if (!op) return;
+    
+    op->type = params->type;
+    op->cx = params->cx;
+    op->cy = params->cy;
+    op->character = params->character;
+    op->line = NULL;
+    op->line_size = params->line_size;
+    
+    if (params->line && params->line_size > 0) {
+        op->line = malloc(params->line_size + 1);
+        if (op->line) {
+            memcpy(op->line, params->line, params->line_size);
+            op->line[params->line_size] = '\0';
+        }
+    }
+    
+    op->next = state->undo_stack;
+    state->undo_stack = op;
+}
+
+void pleditor_free_undo_stack(pleditor_state *state) {
+    pleditor_undo_operation *op = state->undo_stack;
+    while (op) {
+        pleditor_undo_operation *next = op->next;
+        if (op->line) free(op->line);
+        free(op);
+        op = next;
+    }
+    state->undo_stack = NULL;
+}
+
+void pleditor_perform_undo(pleditor_state *state) {
+    if (!state->undo_stack) {
+        pleditor_set_status_message(state, "Nothing to undo");
+        return;
+    }
+    
+    /* Set flag to prevent recording undo operations while undoing */
+    state->is_undoing = true;
+    
+    pleditor_undo_operation *op = state->undo_stack;
+    state->undo_stack = op->next;
+    
+    switch (op->type) {
+        case UNDO_INSERT_CHAR:
+            /* For insert char, we need to delete the character that was inserted */
+            state->cx = op->cx;
+            state->cy = op->cy;
+            if (state->cy < state->num_rows) {
+                pleditor_row *row = &state->rows[state->cy];
+                if (state->cx < row->size) {
+                    /* Delete the character at the cursor position without pushing to undo stack again */
+                    memmove(&row->chars[state->cx], &row->chars[state->cx + 1], row->size - state->cx);
+                    row->size--;
+                    pleditor_update_row(row);
+                    state->dirty = true;
+                    if (state->syntax) {
+                        pleditor_syntax_update_row(state, state->cy);
+                    }
+                }
+            }
+            break;
+            
+        case UNDO_DELETE_CHAR:
+            /* For delete char, we need to re-insert the character */
+            state->cx = op->cx;
+            state->cy = op->cy;
+            if (op->character != 0) {
+                /* Insert character without pushing to undo stack again */
+                if (state->cy == state->num_rows) {
+                    pleditor_insert_row(state, state->num_rows, "", 0);
+                }
+                
+                pleditor_row *row = &state->rows[state->cy];
+                row->chars = realloc(row->chars, row->size + 2);
+                memmove(&row->chars[state->cx + 1], &row->chars[state->cx], row->size - state->cx + 1);
+                row->size++;
+                row->chars[state->cx] = op->character;
+                pleditor_update_row(row);
+                
+                if (state->syntax) {
+                    pleditor_syntax_update_row(state, state->cy);
+                }
+                
+                state->cx++;
+                state->dirty = true;
+            }
+            break;
+            
+        case UNDO_INSERT_LINE:
+            /* For insert line, we need to properly merge the split lines back */
+            if (state->cy < state->num_rows) {
+                /* Set cursor to the row that had the Enter key pressed */
+                state->cy = op->cy;
+                
+                /* When we have the original line data from before the split */
+                if (op->line) {
+                    /* First handle the case of a proper newline (not at the beginning of a line) */
+                    if (op->cx > 0) {
+                        /* Delete the current row that was split */
+                        pleditor_delete_row(state, state->cy);
+                        
+                        /* Insert the original line content that was saved before splitting */
+                        pleditor_insert_row(state, state->cy, op->line, op->line_size);
+                        
+                        /* Delete any content from the next line that would be duplicate */ 
+                        if ((state->cy + 1) < state->num_rows) {
+                            /* Delete the next line (which was created by the Enter key) */
+                            pleditor_delete_row(state, state->cy + 1);
+                        }
+                    } else {
+                        /* For newline at the beginning of a line, just remove the empty line */
+                        pleditor_delete_row(state, state->cy);
+                    }
+                    
+                    /* Update the dirty flag since we've modified the content */
+                    state->dirty = true;
+                } else {
+                    /* For simple empty line insertion, just delete the row */
+                    pleditor_delete_row(state, state->cy);
+                    state->dirty = true;
+                }
+                
+                /* Set cursor to the position before the newline was inserted */
+                state->cx = op->cx;
+            }
+            break;
+            
+        case UNDO_DELETE_LINE:
+            /* For delete line, we need to re-insert the line */
+            if (op->line) {
+                pleditor_insert_row(state, op->cy, op->line, op->line_size);
+                state->cy = op->cy;
+                state->cx = op->cx;
+                
+                /* Update the dirty flag since we've modified the content */
+                state->dirty = true;
+            }
+            break;
+    }
+    
+    /* Clear the undoing flag */
+    state->is_undoing = false;
+    
+    /* Free the undo operation */
+    if (op->line) free(op->line);
+    free(op);
+    
+    pleditor_set_status_message(state, "Undo performed");
 }

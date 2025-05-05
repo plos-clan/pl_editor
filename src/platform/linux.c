@@ -33,21 +33,21 @@ bool pleditor_platform_init(void) {
     write(STDOUT_FILENO, "\033[?1049h", 8);
 
     struct termios raw = orig_termios;
-    
-    /* Input flags: disable break signal, disable CR to NL translation, 
+
+    /* Input flags: disable break signal, disable CR to NL translation,
      * disable parity checking, disable stripping high bit */
     raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    
+
     /* Output flags: disable post-processing */
     raw.c_oflag &= ~(OPOST);
-    
+
     /* Control flags: set 8-bit chars */
     raw.c_cflag |= (CS8);
-    
-    /* Local flags: disable echoing, canonical mode, 
+
+    /* Local flags: disable echoing, canonical mode,
      * disable extended functions, disable signal chars */
     raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    
+
     /* Control chars: set return condition to return as soon as any input is available */
     raw.c_cc[VMIN] = 0;  /* No minimum num of bytes required */
     raw.c_cc[VTIME] = 1; /* 100ms timeout between bytes */
@@ -56,7 +56,7 @@ bool pleditor_platform_init(void) {
         perror("tcsetattr");
         return false;
     }
-    
+
     return true;
 }
 
@@ -66,7 +66,7 @@ bool pleditor_platform_init(void) {
 void pleditor_platform_cleanup(void) {
     /* Return to normal screen buffer */
     write(STDOUT_FILENO, "\033[?1049l", 8);
-    
+
     /* Restore original terminal settings */
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
@@ -76,9 +76,9 @@ void pleditor_platform_cleanup(void) {
  */
 bool pleditor_platform_get_window_size(int *rows, int *cols) {
     struct winsize ws;
-    
+
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
-        return false;  
+        return false;
     } else {
         *cols = ws.ws_col;
         *rows = ws.ws_row;
@@ -98,14 +98,14 @@ int pleditor_platform_read_key(void) {
             exit(1);
         }
     }
-    
+
     /* Handle escape sequences */
     if (c == PLEDITOR_KEY_ESC) {
         char seq[3];
-        
+
         if (read(STDIN_FILENO, &seq[0], 1) != 1) return PLEDITOR_KEY_ESC;
         if (read(STDIN_FILENO, &seq[1], 1) != 1) return PLEDITOR_KEY_ESC;
-        
+
         if (seq[0] == '[') {
             if (seq[1] >= '0' && seq[1] <= '9') {
                 if (read(STDIN_FILENO, &seq[2], 1) != 1) return PLEDITOR_KEY_ESC;
@@ -136,10 +136,10 @@ int pleditor_platform_read_key(void) {
                 case 'F': return PLEDITOR_END_KEY;
             }
         }
-        
+
         return PLEDITOR_KEY_ESC;
     }
-    
+
     return c;
 }
 
@@ -150,8 +150,6 @@ void pleditor_platform_write(const char *s, size_t len) {
     write(STDOUT_FILENO, s, len);
 }
 
-
-
 /**
  * Read the contents of a file
  */
@@ -160,19 +158,19 @@ bool pleditor_platform_read_file(const char *filename, char **buffer, size_t *le
     if (!fp) {
         return false;
     }
-    
+
     // Get file size
     fseek(fp, 0, SEEK_END);
     size_t filesize = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    
+
     // Allocate buffer
     *buffer = malloc(filesize + 1);
     if (!*buffer) {
         fclose(fp);
         return false;
     }
-    
+
     // Read file
     size_t bytes_read = fread(*buffer, 1, filesize, fp);
     if (bytes_read < filesize) {
@@ -180,10 +178,10 @@ bool pleditor_platform_read_file(const char *filename, char **buffer, size_t *le
         fclose(fp);
         return false;
     }
-    
+
     (*buffer)[filesize] = '\0';
     *len = filesize;
-    
+
     fclose(fp);
     return true;
 }
@@ -196,9 +194,9 @@ bool pleditor_platform_write_file(const char *filename, const char *buffer, size
     if (!fp) {
         return false;
     }
-    
+
     size_t bytes_written = fwrite(buffer, 1, len, fp);
     fclose(fp);
-    
+
     return bytes_written == len;
 }

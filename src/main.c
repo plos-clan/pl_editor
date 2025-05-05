@@ -9,11 +9,6 @@
 #include "platform.h"
 #include "syntax.h"
 
-void print_usage() {
-    printf("Usage: pleditor [filename]\n");
-    exit(1);
-}
-
 int main(int argc, char *argv[]) {
     /* Initialize platform */
     if (!pleditor_platform_init()) {
@@ -27,7 +22,7 @@ int main(int argc, char *argv[]) {
     /* Initialize editor state */
     pleditor_state state;
     pleditor_init(&state);
-    
+
     /* Initialize syntax highlighting */
     pleditor_syntax_init(&state);
 
