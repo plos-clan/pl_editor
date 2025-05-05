@@ -39,11 +39,14 @@ xmake run pleditor <filename>
 
 ## Architecture
 
-The editor is split into platform-independent and platform-dependent code:
+The editor is split into platform-independent and platform-dependent code.
 
-- `pleditor.c/h`: Core editor functionality (platform-independent)
-- `syntax.c/h`: Syntax highlighting (platform-independent)
-- `terminal.h`: VT100 terminal control codes (platform-independent)
+- `pleditor.c/h`: Core editor functionality
+- `syntax.c/h`: Syntax highlighting
+- `terminal.h`: VT100 terminal control codes
+
+**Platform specific code:**
+
 - `platform.h`: Platform abstraction interface
 - `platform/linux.c`: Linux implementation of the platform interface
 
