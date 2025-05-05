@@ -9,12 +9,12 @@ pleditor is a simple text editor that works with terminal devices supporting VT1
 - Basic text editing operations
 - Reference Linux implementation included
 - Simple to port to other platforms by implementing the platform interface
-- Filters control characters to prevent editing issues
 
 ## Keyboard Shortcuts
 
 - `Ctrl-S`: Save file
 - `Ctrl-Q`: Quit
+- `Ctrl-R`: Toggle line numbers
 - Arrow keys: Move cursor
 - Page Up/Down: Scroll by page
 - Home/End: Move to start/end of line
@@ -27,17 +27,18 @@ The project uses xmake as its build system. To build:
 xmake
 ```
 
-To run:
+To build and run:
 
 ```
-xmake run [filename]
+xmake run pleditor [filename]
 ```
 
 ## Architecture
 
 The editor is split into platform-independent and platform-dependent code:
 
-- `pleditor.h/c`: Core editor functionality (platform-independent)
+- `pleditor.c/h`: Core editor functionality (platform-independent)
+- `syntax.c/h`: Syntax highlighting (platform-independent)
 - `terminal.h`: VT100 terminal control codes (platform-independent)
 - `platform.h`: Platform abstraction interface
 - `platform/linux.c`: Linux implementation of the platform interface
