@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-#include <time.h>
 
 /* Editor config */
 #define PLEDITOR_VERSION "0.1.0"
@@ -85,7 +84,6 @@ typedef struct pleditor_state {
     bool dirty;             /* File has unsaved changes */
     char *filename;         /* Currently open filename */
     char status_msg[80];    /* Status message */
-    time_t status_msg_time; /* Time when status was set */
     pleditor_syntax *syntax; /* Current syntax highlighting */
     bool show_line_numbers; /* Whether to display line numbers */
 } pleditor_state;

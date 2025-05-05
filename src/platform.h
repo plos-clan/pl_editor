@@ -23,14 +23,11 @@ void pleditor_platform_cleanup(void);
 /* Get terminal window size */
 bool pleditor_platform_get_window_size(int *rows, int *cols);
 
-/* Read a key from the terminal (with timeout in ms, 0 = no timeout) */
-int pleditor_platform_read_key(int timeout_ms);
+/* Read a key from the terminal */
+int pleditor_platform_read_key(void);
 
 /* Write string to terminal */
 void pleditor_platform_write(const char *s, size_t len);
-
-/* Get current time */
-time_t pleditor_platform_get_time(void);
 
 /* File operations */
 bool pleditor_platform_read_file(const char *filename, char **buffer, size_t *len);

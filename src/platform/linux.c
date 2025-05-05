@@ -87,21 +87,9 @@ bool pleditor_platform_get_window_size(int *rows, int *cols) {
 }
 
 /**
- * Read a key from the terminal with timeout
+ * Read a key from the terminal
  */
-int pleditor_platform_read_key(int timeout_ms) {
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(STDIN_FILENO, &readfds);
-    
-    struct timeval tv;
-    tv.tv_sec = timeout_ms / 1000;
-    tv.tv_usec = (timeout_ms % 1000) * 1000;
-    
-    if (timeout_ms > 0 && select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv) != 1) {
-        return -1; /* Timeout or error */
-    }
-    
+int pleditor_platform_read_key(void) {
     int nread;
     char c;
     while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
@@ -162,12 +150,7 @@ void pleditor_platform_write(const char *s, size_t len) {
     write(STDOUT_FILENO, s, len);
 }
 
-/**
- * Get current time
- */
-time_t pleditor_platform_get_time(void) {
-    return time(NULL);
-}
+
 
 /**
  * Read the contents of a file

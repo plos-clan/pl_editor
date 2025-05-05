@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     /* Main editor loop */
     while (1) {
         pleditor_refresh_screen(&state);
-        int c = pleditor_platform_read_key(0);
+        int c = pleditor_platform_read_key();
         pleditor_process_keypress(&state, c);
     }
 

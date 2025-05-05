@@ -397,10 +397,10 @@ void pleditor_draw_message_bar(pleditor_state *state, char *buffer, int *len) {
     /* Clear the message bar */
     *len += sprintf(buffer + *len, VT100_CLEAR_LINE);
 
-    /* Show status message if it's recent enough */
+    /* Show status message if it exists */
     int msglen = strlen(state->status_msg);
     if (msglen > state->screen_cols) msglen = state->screen_cols;
-    if (msglen && pleditor_platform_get_time() - state->status_msg_time < 5) {
+    if (msglen) {
         *len += sprintf(buffer + *len, "%s", state->status_msg);
     }
 }
@@ -449,7 +449,6 @@ void pleditor_set_status_message(pleditor_state *state, const char *fmt, ...) {
     va_start(ap, fmt);
     vsnprintf(state->status_msg, sizeof(state->status_msg), fmt, ap);
     va_end(ap);
-    state->status_msg_time = pleditor_platform_get_time();
 }
 
 /**
@@ -468,7 +467,7 @@ char* pleditor_prompt(pleditor_state *state, const char *prompt) {
         pleditor_set_status_message(state, "%s: %s", prompt, buf);
         pleditor_refresh_screen(state);
 
-        int c = pleditor_platform_read_key(0);
+        int c = pleditor_platform_read_key();
 
         if (c == PLEDITOR_DEL_KEY || c == PLEDITOR_KEY_BACKSPACE || c == PLEDITOR_CTRL_KEY('h')) {
             /* Handle backspace/delete */
@@ -596,6 +595,11 @@ void pleditor_save(pleditor_state *state) {
 void pleditor_process_keypress(pleditor_state *state, int c) {
     static int quit_times = PLEDITOR_QUIT_CONFIRM_TIMES;
 
+    /* Clear status message on any keypress unless we're confirming quit */
+    if (!(c == PLEDITOR_CTRL_KEY('q') && state->dirty && quit_times > 0)) {
+        pleditor_set_status_message(state, "");
+    }
+
     switch (c) {
         case PLEDITOR_CTRL_KEY('q'):
             if (state->dirty && quit_times > 0) {
@@ -696,7 +700,6 @@ void pleditor_init(pleditor_state *state) {
     state->dirty = false;
     state->filename = NULL;
     state->status_msg[0] = '\0';
-    state->status_msg_time = 0;
     state->syntax = NULL;  /* No syntax highlighting by default */
     state->show_line_numbers = true; /* Line numbers enabled by default */
 
