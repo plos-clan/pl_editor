@@ -256,8 +256,8 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
             int line_number_width = pleditor_get_line_number_width(state);
             int digits = line_number_width - 1; /* Subtract space */
 
-            /* Check if this is a file line or the empty line being edited */
-            bool is_file_line = filerow <= state->num_rows;
+            /* Check if this is a valid file line */
+            bool is_file_line = filerow < state->num_rows;
             bool is_current_line = filerow == state->cy;
 
             /* Either it's an existing file line or it's the empty line right after
@@ -534,7 +534,7 @@ void pleditor_move_cursor(pleditor_state *state, int key) {
             break;
 
         case PLEDITOR_ARROW_DOWN:
-            if (state->cy < state->num_rows) state->cy++;
+            if (state->cy < state->num_rows - 1) state->cy++;
             break;
     }
 
@@ -664,7 +664,7 @@ void pleditor_process_keypress(pleditor_state *state, int c) {
                     state->cy = state->row_offset;
                 } else if (c == PLEDITOR_PAGE_DOWN) {
                     state->cy = state->row_offset + state->screen_rows - 1;
-                    if (state->cy > state->num_rows) state->cy = state->num_rows;
+                    if (state->cy > state->num_rows - 1) state->cy = state->num_rows - 1;
                 }
 
                 int times = state->screen_rows;
