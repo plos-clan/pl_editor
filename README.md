@@ -2,18 +2,22 @@
 
 pleditor is a simple text editor that works with terminal devices supporting VT100 escape sequences. The core editor functionality is platform-independent, while platform-specific functionality is abstracted through a clean interface.
 
+## Screenshot
+
+![](screenshot.png)
+
 ## Features
 
 - VT100 terminal interface with status bar
 - Platform-independent core that works with any VT100-compatible terminal
-- Basic text editing operations
+- Various text editing operations (insert, delete, undo)
 - Reference Linux implementation included
-- Simple to port to other platforms by implementing the platform interface
 
 ## Keyboard Shortcuts
 
 - `Ctrl-S`: Save file
 - `Ctrl-Q`: Quit
+- `Ctrl-Z`: Undo
 - `Ctrl-R`: Toggle line numbers
 - Arrow keys: Move cursor
 - Page Up/Down: Scroll by page
@@ -30,7 +34,7 @@ xmake
 To build and run:
 
 ```
-xmake run pleditor [filename]
+xmake run pleditor <filename>
 ```
 
 ## Architecture
