@@ -42,6 +42,25 @@ char *LUA_HL_keywords[] = {
     NULL
 };
 
+/* Python language keywords */
+char *PYTHON_HL_keywords[] = {
+    /* Python keywords */
+    "def", "class", "if", "elif", "else", "while", "for", "in", "try",
+    "except", "finally", "with", "as", "import", "from", "pass", "return",
+    "break", "continue", "lambda", "yield", "global", "nonlocal", "assert",
+    "raise", "del", "not", "and", "or", "is", "async", "await",
+
+    /* Python built-in values */
+    "True|", "False|", "None|",
+
+    /* Python built-in functions */
+    "print|", "len|", "int|", "str|", "float|", "list|", "dict|", "tuple|", "set|",
+    "range|", "enumerate|", "sorted|", "sum|", "min|", "max|", "abs|", "open|",
+    "type|", "id|", "input|", "format|", "zip|", "map|", "filter|", "any|", "all|",
+
+    NULL
+};
+
 /* Syntax definitions */
 pleditor_syntax HLDB[] = {
     /* C-like language */
@@ -64,6 +83,16 @@ pleditor_syntax HLDB[] = {
         "]]", /* Multi-line comment end */
         0      /* Flags */
     },
+    /* Python language */
+    {
+        "python",
+        (char*[]){"py", "pyw", NULL},
+        PYTHON_HL_keywords,
+        "#", /* Single line comment start */
+        "\"\"\"", /* Multi-line comment/docstring start */
+        "\"\"\"", /* Multi-line comment/docstring end */
+        0      /* Flags */
+    },
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
@@ -71,7 +100,7 @@ pleditor_syntax HLDB[] = {
 /* Is the character a separator */
 bool is_separator(int c) {
     return c == '\0' || isspace(c) || c == '\0' ||
-    strchr(",.()+-/*=~%<>[];\\{}", c) != NULL;
+    strchr(",.()+-/*=~%<>[];\\{}:", c) != NULL;
 }
 
 /* Select syntax highlighting based on file extension */
@@ -194,11 +223,62 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
         }
 
         /* Number handling */
-        if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
-            (c == '.' && prev_hl == HL_NUMBER)) {
+        if (isdigit(c)) {
+            /* Look for hex, octal, or binary number formats */
+            if (c == '0' && i + 1 < row->render_size) {
+                /* Check for hex (0x), octal (0o), or binary (0b) prefixes */
+                char next = row->render[i + 1];
+                if ((next == 'x' || next == 'X' || next == 'o' || next == 'O' || next == 'b' || next == 'B') && 
+                    i + 2 < row->render_size) {
+                    /* Highlight the prefix (0x, 0o, 0b) */
+                    row->hl->hl[i] = HL_NUMBER;     /* 0 */
+                    row->hl->hl[i+1] = HL_NUMBER;   /* x, o, or b */
+                    i += 2;
+                    
+                    /* Continue highlighting valid digits based on the number format */
+                    while (i < row->render_size) {
+                        c = row->render[i];
+                        if (next == 'x' || next == 'X') {
+                            /* Hex: 0-9, a-f, A-F */
+                            if (!(isdigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+                                break;
+                        } else if (next == 'o' || next == 'O') {
+                            /* Octal: 0-7 */
+                            if (!(c >= '0' && c <= '7'))
+                                break;
+                        } else if (next == 'b' || next == 'B') {
+                            /* Binary: 0-1 */
+                            if (!(c == '0' || c == '1'))
+                                break;
+                        }
+                        row->hl->hl[i] = HL_NUMBER;
+                        i++;
+                    }
+                    prev_sep = false;
+                    continue;
+                }
+            }
+            
+            /* Regular decimal number */
+            if (prev_sep || prev_hl == HL_NUMBER) {
+                row->hl->hl[i] = HL_NUMBER;
+                i++;
+                prev_sep = false;
+                continue;
+            }
+        } else if (c == '.' && prev_hl == HL_NUMBER) {
+            /* Decimal point in a number */
             row->hl->hl[i] = HL_NUMBER;
             i++;
             prev_sep = false;
+            continue;
+        }
+        
+        /* Handle special case for colon in array slices - don't highlight the colon */
+        if (c == ':' && ((i > 0 && row->hl->hl[i-1] == HL_NUMBER) || 
+                        (i+1 < row->render_size && isdigit(row->render[i+1])))) {
+            i++;
+            prev_sep = true; /* Treat colon as separator for the next character */
             continue;
         }
 
