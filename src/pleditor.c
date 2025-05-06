@@ -211,9 +211,10 @@ void pleditor_delete_char(pleditor_state *state) {
 
         state->dirty = true;
     } else {
-        /* Backspace at start of line - save the current row for undo before merging */
-        /* We need to adjust cursor position for undo to beginning of previous row */
-        state->cx = state->rows[state->cy - 1].size;
+        /* At start of line or DEL at end of previous line - save the line for undo before merging */
+        pleditor_row *prev_row = &state->rows[state->cy - 1];
+        
+        /* Save the line for undo */
         pleditor_undo_params params = {
             .type = UNDO_DELETE_LINE,
             .cx = 0,
@@ -224,7 +225,10 @@ void pleditor_delete_char(pleditor_state *state) {
         };
         pleditor_push_undo(state, &params);
         
-        pleditor_row *prev_row = &state->rows[state->cy - 1];
+        /* Adjust cursor position for undo to beginning of previous row */
+        state->cx = prev_row->size;
+        
+        /* Now merge the lines */
         prev_row->chars = realloc(prev_row->chars, prev_row->size + row->size + 1);
         memcpy(&prev_row->chars[prev_row->size], row->chars, row->size);
         prev_row->size += row->size;
@@ -696,6 +700,12 @@ void pleditor_process_keypress(pleditor_state *state, int c) {
             break;
 
         case PLEDITOR_DEL_KEY:
+            /* If we're at the end of the document (empty file or end of last line), do nothing */
+            if (state->num_rows == 0 || 
+                (state->cy == state->num_rows - 1 && 
+                 state->cx == state->rows[state->cy].size)) {
+                break;
+            }
             pleditor_move_cursor(state, PLEDITOR_ARROW_RIGHT);
             pleditor_delete_char(state);
             break;
@@ -989,6 +999,26 @@ void pleditor_perform_undo(pleditor_state *state) {
         case UNDO_DELETE_LINE:
             /* For delete line, we need to re-insert the line */
             if (op->line) {
+                /* Special case for Delete at end of line */
+                if (op->cx == 0 && op->cy > 0 && op->cy <= state->num_rows) {
+                    pleditor_row *prev_row = &state->rows[op->cy - 1];
+                    /* When using Delete at end of line, the deleted line's content is appended to previous line */
+                    /* Simple fix: just check if previous line ends with the content of deleted line */
+                    if (prev_row->size >= op->line_size) {
+                        int match_start = prev_row->size - op->line_size;
+                        if (memcmp(&prev_row->chars[match_start], op->line, op->line_size) == 0) {
+                            /* Truncate the previous line by removing the merged content */
+                            prev_row->chars[match_start] = '\0';
+                            prev_row->size = match_start;
+                            pleditor_update_row(prev_row);
+                            
+                            if (state->syntax) {
+                                pleditor_syntax_update_row(state, op->cy - 1);
+                            }
+                        }
+                    }
+                }
+                
                 pleditor_insert_row(state, op->cy, op->line, op->line_size);
                 state->cy = op->cy;
                 state->cx = op->cx;
