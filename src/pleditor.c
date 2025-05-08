@@ -217,7 +217,7 @@ void pleditor_delete_char(pleditor_state *state) {
         /* Save the line for undo */
         pleditor_undo_params params = {
             .type = UNDO_DELETE_LINE,
-            .cx = 0,
+            .cx = prev_row->size,  /* Store previous row's end position */
             .cy = state->cy,
             .character = 0,
             .line = row->chars,
@@ -710,8 +710,19 @@ void pleditor_process_keypress(pleditor_state *state, int c) {
                  state->cx == state->rows[state->cy].size)) {
                 break;
             }
+            /* Store original cursor position before moving right */
+            int orig_cx = state->cx;
+            int orig_cy = state->cy;
+            
             pleditor_move_cursor(state, PLEDITOR_ARROW_RIGHT);
             pleditor_delete_char(state);
+            
+            /* Update the undo operation with the original cursor position
+             * and mark the position by making cx negative to signal it was a DEL operation */
+            if (state->undo_stack && state->undo_stack->type == UNDO_DELETE_CHAR) {
+                state->undo_stack->cx = -orig_cx - 1; /* Store as negative to mark DEL op */
+                state->undo_stack->cy = orig_cy;
+            }
             break;
 
         case '\r':
@@ -978,8 +989,17 @@ void pleditor_perform_undo(pleditor_state *state) {
 
         case UNDO_DELETE_CHAR:
             /* For delete char, we need to re-insert the character */
-            state->cx = op->cx;
+            bool is_del_operation = false;
+            
+            /* Check if this was a DEL operation (marked by negative cx) */
+            if (op->cx < 0) {
+                is_del_operation = true;
+                state->cx = -op->cx - 1; /* Extract the original position */
+            } else {
+                state->cx = op->cx;
+            }
             state->cy = op->cy;
+            
             if (op->character != 0) {
                 /* Insert character without pushing to undo stack again */
                 if (state->cy == state->num_rows) {
@@ -997,7 +1017,10 @@ void pleditor_perform_undo(pleditor_state *state) {
                     pleditor_syntax_update_row(state, state->cy);
                 }
 
-                state->cx++;
+                /* Only increment cursor for backspace, not for DEL */
+                if (!is_del_operation) {
+                    state->cx++;
+                }
                 state->dirty = true;
             }
             break;
@@ -1045,28 +1068,50 @@ void pleditor_perform_undo(pleditor_state *state) {
             if (!op->line) break;
 
             /* Handle special case for Delete at end of line */
-            if (op->cx == 0 && op->cy > 0 && op->cy <= state->num_rows) {
+            if (op->cy > 0 && op->cy <= state->num_rows) {
                 pleditor_row *prev_row = &state->rows[op->cy - 1];
-                int match_start = prev_row->size - op->line_size;
-
-                /* Check if previous line ends with deleted line content */
-                if (prev_row->size >= op->line_size &&
-                    memcmp(&prev_row->chars[match_start], op->line, op->line_size) == 0) {
-                        /* Truncate previous line */
-                        prev_row->chars[match_start] = '\0';
-                        prev_row->size = match_start;
-                        pleditor_update_row(prev_row);
-
-                        if (state->syntax) {
-                            pleditor_syntax_update_row(state, op->cy - 1);
-                        }
+                
+                /* Check if this is a line joining operation (DEL at line end) */
+                if (op->cx > 0) {
+                    /* Truncate previous line to remove second line content */
+                    prev_row->chars[op->cx] = '\0';
+                    prev_row->size = op->cx;
+                    pleditor_update_row(prev_row);
+                    
+                    if (state->syntax) {
+                        pleditor_syntax_update_row(state, op->cy - 1);
                     }
+                } else {
+                    /* Original backspace at line start case */
+                    int match_start = prev_row->size - op->line_size;
+                    
+                    /* Check if previous line ends with deleted line content */
+                    if (prev_row->size >= op->line_size &&
+                        memcmp(&prev_row->chars[match_start], op->line, op->line_size) == 0) {
+                            /* Truncate previous line */
+                            prev_row->chars[match_start] = '\0';
+                            prev_row->size = match_start;
+                            pleditor_update_row(prev_row);
+                            
+                            if (state->syntax) {
+                                pleditor_syntax_update_row(state, op->cy - 1);
+                            }
+                        }
+                }
             }
 
             /* Re-insert the deleted line */
             pleditor_insert_row(state, op->cy, op->line, op->line_size);
-            state->cy = op->cy;
-            state->cx = op->cx;
+            
+            /* Position cursor at end of previous line for DEL at end of line case */
+            if (op->cy > 0) {
+                state->cy = op->cy - 1;
+                state->cx = op->cx;
+            } else {
+                state->cy = op->cy;
+                state->cx = 0;
+            }
+            
             state->dirty = true;
             break;
         }
@@ -1145,24 +1190,25 @@ void pleditor_perform_redo(pleditor_state *state) {
 
         case UNDO_DELETE_CHAR:
             /* For redo of delete, we need to delete the character again */
-            state->cx = op->cx;
+            bool is_del_operation = false;
+            
+            /* Check if this was a DEL operation (marked by negative cx) */
+            if (op->cx < 0) {
+                is_del_operation = true;
+                state->cx = -op->cx - 1; /* Extract the original position */
+            } else {
+                state->cx = op->cx;
+            }
             state->cy = op->cy;
             
-            if (state->cy < state->num_rows) {
+            if (is_del_operation) {
+                /* For DEL operation, simulate DEL key press */
+                /* Move cursor right, then delete */
+                pleditor_move_cursor(state, PLEDITOR_ARROW_RIGHT);
+                pleditor_delete_char(state);
+            } else if (state->cy < state->num_rows) {
                 pleditor_row *row = &state->rows[state->cy];
-                /* Check if we're at the end of a line and there's a next line (DEL key case) */
-                if (state->cx == row->size && state->cy < state->num_rows - 1) {
-                    /* This is the DEL key operation (joining with next line) */
-                    int join_point = row->size;
-                    
-                    /* Move right and then delete like the DEL key does */
-                    pleditor_move_cursor(state, PLEDITOR_ARROW_RIGHT);
-                    pleditor_delete_char(state);
-                    
-                    /* Ensure cursor is at the join point in the current line */
-                    state->cy = op->cy;
-                    state->cx = join_point;
-                } else if (state->cx == 0 && state->cy > 0) {
+                if (state->cx == 0 && state->cy > 0) {
                     /* This is a line join operation (deletion at beginning of line) */
                     /* Move cursor to the end of previous line where characters will be joined */
                     pleditor_row *prev_row = &state->rows[state->cy - 1];
