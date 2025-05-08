@@ -139,7 +139,6 @@ void pleditor_process_keypress(pleditor_state *state, int c);
 void pleditor_push_undo(pleditor_state *state, const pleditor_undo_params *params);
 void pleditor_perform_undo(pleditor_state *state);
 void pleditor_perform_redo(pleditor_state *state);
-void pleditor_free_undo_stack(pleditor_state *state);
-void pleditor_free_redo_stack(pleditor_state *state);
+void pleditor_free_unredo_stack(pleditor_undo_operation **stack);
 
 #endif /* PLEDITOR_H */
