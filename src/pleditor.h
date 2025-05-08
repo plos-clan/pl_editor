@@ -95,7 +95,6 @@ void pleditor_init(pleditor_state *state);
 void pleditor_free(pleditor_state *state);
 bool pleditor_open(pleditor_state *state, const char *filename);
 void pleditor_save(pleditor_state *state);
-void pleditor_update_row(pleditor_state *state, pleditor_row *row);
 
 void pleditor_insert_char(pleditor_state *state, int c);
 void pleditor_delete_char(pleditor_state *state);
