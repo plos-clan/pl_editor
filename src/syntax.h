@@ -5,7 +5,6 @@
 #define SYNTAX_H
 
 #include <stdbool.h>
-#include <stddef.h>
 
 /* Highlight types */
 enum pleditor_highlight {

@@ -4,9 +4,7 @@
 #ifndef PLEDITOR_H
 #define PLEDITOR_H
 
-#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
 #include "syntax.h"
@@ -23,6 +21,7 @@
 
 /* Special key codes */
 enum pleditor_key {
+    PLEDITOR_KEY_ERR = -1,
     PLEDITOR_ARROW_LEFT = 1000,
     PLEDITOR_ARROW_RIGHT,
     PLEDITOR_ARROW_UP,
@@ -31,7 +30,7 @@ enum pleditor_key {
     PLEDITOR_PAGE_DOWN,
     PLEDITOR_HOME_KEY,
     PLEDITOR_END_KEY,
-    PLEDITOR_DEL_KEY
+    PLEDITOR_DEL_KEY,
 };
 
 /* Undo/Redo operation types */
@@ -87,14 +86,16 @@ typedef struct pleditor_state {
     bool show_line_numbers;  /* Whether to display line numbers */
     pleditor_undo_operation *undo_stack; /* Stack of undo operations */
     pleditor_undo_operation *redo_stack; /* Stack of redo operations */
+    bool should_quit;        /* Flag to indicate editor should exit */
     bool is_unredoing;       /* Flag to prevent recursive undo/redo operations */
 } pleditor_state;
 
 /* Function prototypes */
 void pleditor_init(pleditor_state *state);
 void pleditor_free(pleditor_state *state);
-void pleditor_open(pleditor_state *state, const char *filename);
+bool pleditor_open(pleditor_state *state, const char *filename);
 void pleditor_save(pleditor_state *state);
+void pleditor_update_row(pleditor_state *state, pleditor_row *row);
 
 void pleditor_insert_char(pleditor_state *state, int c);
 void pleditor_delete_char(pleditor_state *state);

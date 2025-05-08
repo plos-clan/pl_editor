@@ -3,7 +3,6 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "pleditor.h"
 #include "platform.h"
@@ -16,19 +15,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* Always restore terminal settings before exit */
-    atexit(pleditor_platform_cleanup);
-
     /* Initialize editor state */
     pleditor_state state;
     pleditor_init(&state);
-
-    /* Initialize syntax highlighting */
     pleditor_syntax_init(&state);
 
     /* Open file if specified */
-    if (argc >= 2) {
-        pleditor_open(&state, argv[1]);
+    if (argc >= 2 && !pleditor_open(&state, argv[1])) {
+        pleditor_platform_cleanup();
+        return 1;
     }
 
     /* Set initial status message */
@@ -36,14 +31,15 @@ int main(int argc, char *argv[]) {
         "HELP: Ctrl-S = save/save as | Ctrl-Q = quit | Ctrl-R = toggle line numbers");
 
     /* Main editor loop */
-    while (1) {
+    while (!state.should_quit) {
         pleditor_refresh_screen(&state);
         int c = pleditor_platform_read_key();
         pleditor_process_keypress(&state, c);
     }
 
-    /* Free editor resources */
+    /* Cleanup resources and restore terminal status */
     pleditor_free(&state);
+    pleditor_platform_cleanup();
 
     return 0;
 }

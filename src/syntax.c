@@ -5,7 +5,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <stdio.h>
 
 #include "syntax.h"
 #include "pleditor.h"
@@ -107,29 +106,29 @@ static bool is_separator(int c) {
 static bool highlight_based_number(pleditor_row *row, int *i) {
     if (*i + 2 >= row->render_size || row->render[*i] != '0')
         return false;
-        
+
     char next = row->render[*i + 1];
     if (!strchr("xXoObB", next))
         return false;
-    
+
     /* Highlight the prefix (0x, 0o, 0b) */
     row->hl->hl[*i] = row->hl->hl[*i + 1] = HL_NUMBER;
     *i += 2;
-    
+
     /* Continue highlighting based on the number format */
     while (*i < row->render_size) {
         char c = row->render[*i];
         bool valid;
-        
+
         if (next == 'x' || next == 'X')
             valid = isxdigit(c);
         else if (next == 'o' || next == 'O')
             valid = c >= '0' && c <= '7';
         else
             valid = c == '0' || c == '1';
-            
+
         if (!valid) break;
-        
+
         row->hl->hl[*i] = HL_NUMBER;
         (*i)++;
     }
@@ -308,7 +307,7 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
                 prev_sep = false;
                 continue;
             }
-            
+
             /* Regular decimal number */
             if (prev_sep || prev_hl == HL_NUMBER) {
                 row->hl->hl[i] = HL_NUMBER;
@@ -351,7 +350,7 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
                     break;
                 }
             }
-            
+
             if (found_keyword) {
                 prev_sep = false;
                 continue;

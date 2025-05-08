@@ -23,7 +23,6 @@ static struct termios orig_termios;
 /* Initialize the terminal for raw mode */
 bool pleditor_platform_init(void) {
     if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) {
-        perror("tcgetattr");
         return false;
     }
 
@@ -51,7 +50,6 @@ bool pleditor_platform_init(void) {
     raw.c_cc[VTIME] = 1; /* 100ms timeout between bytes */
 
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) {
-        perror("tcsetattr");
         return false;
     }
 
@@ -86,8 +84,7 @@ int pleditor_platform_read_key(void) {
     char c;
     while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
         if (nread == -1 && errno != EAGAIN) {
-            perror("read");
-            exit(1);
+            return PLEDITOR_KEY_ERR;
         }
     }
 
