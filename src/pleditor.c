@@ -910,10 +910,12 @@ void pleditor_push_undo(pleditor_state *state, const pleditor_undo_params *param
     op->line = NULL;
     op->line_size = params->line_size;
 
-    if (params->line && params->line_size > 0) {
+    if (params->line) {
         op->line = malloc(params->line_size + 1);
         if (op->line) {
-            memcpy(op->line, params->line, params->line_size);
+            if (params->line_size > 0) {
+                memcpy(op->line, params->line, params->line_size);
+            }
             op->line[params->line_size] = '\0';
         }
     }
@@ -1069,6 +1071,7 @@ void pleditor_perform_undo(pleditor_state *state) {
             break;
 
         case UNDO_DELETE_LINE:
+            /* Only break if the line pointer is NULL */
             if (!op->line) break;
 
             /* Handle special case for Delete at end of line */
@@ -1153,10 +1156,12 @@ void pleditor_perform_redo(pleditor_state *state) {
         undo_op->line = NULL;
         undo_op->line_size = op->line_size;
 
-        if (op->line && op->line_size > 0) {
+        if (op->line) {
             undo_op->line = malloc(op->line_size + 1);
             if (undo_op->line) {
-                memcpy(undo_op->line, op->line, op->line_size);
+                if (op->line_size > 0) {
+                    memcpy(undo_op->line, op->line, op->line_size);
+                }
                 undo_op->line[op->line_size] = '\0';
             }
         }
@@ -1283,15 +1288,37 @@ void pleditor_perform_redo(pleditor_state *state) {
             state->cy = op->cy;
 
             if (state->cy < state->num_rows) {
+                /* Update the undo operation to save the current line content */
+                if (undo_op) {
+                    pleditor_row *current_row = &state->rows[state->cy];
+                    undo_op->line_size = current_row->size;
+                    
+                    /* Allocate and save the line content for proper undo */
+                    if (undo_op->line) {
+                        free(undo_op->line);
+                        undo_op->line = NULL;
+                    }
+                    
+                    undo_op->line = malloc(current_row->size + 1);
+                    if (undo_op->line) {
+                        if (current_row->size > 0) {
+                            memcpy(undo_op->line, current_row->chars, current_row->size);
+                        }
+                        undo_op->line[current_row->size] = '\0';
+                    }
+                }
+                
                 /* Check if this is a DEL key operation at the end of the previous line */
-                if (state->cy > 0 && op->line && op->line_size > 0) {
-                    /* This is likely a DEL key at end of line case */
+                if (state->cy > 0 && op->line) {
+                    /* This is a DEL key at end of line case */
                     pleditor_row *prev_row = &state->rows[state->cy - 1];
                     int join_point = prev_row->size;
 
                     /* Merge the content with the previous line */
                     prev_row->chars = realloc(prev_row->chars, prev_row->size + op->line_size + 1);
-                    memcpy(&prev_row->chars[prev_row->size], op->line, op->line_size);
+                    if (op->line_size > 0) {
+                        memcpy(&prev_row->chars[prev_row->size], op->line, op->line_size);
+                    }
                     prev_row->size += op->line_size;
                     prev_row->chars[prev_row->size] = '\0';
                     pleditor_update_row(prev_row);
@@ -1310,6 +1337,12 @@ void pleditor_perform_redo(pleditor_state *state) {
                 } else {
                     /* Regular line delete */
                     pleditor_delete_row(state, state->cy);
+                    
+                    /* If this was a DEL at end of line, position cursor at end of previous line */
+                    if (state->cy > 0 && op->cx > 0) {
+                        state->cy--;
+                        state->cx = op->cx;
+                    }
                 }
                 state->dirty = true;
             }
