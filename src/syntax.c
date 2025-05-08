@@ -175,7 +175,7 @@ int pleditor_syntax_color_to_ansi(int hl) {
             return 35;  /* Magenta */
         case HL_NUMBER:
             return 31;  /* Red */
-        case HL_MATCH:
+        case HL_MATCHSEARCH:
             return 34;  /* Blue */
         default:
             return 37;  /* White (default) */

@@ -45,10 +45,10 @@ enum pleditor_undo_type {
 /* Undo/Redo operation parameters */
 typedef struct pleditor_undo_params {
     enum pleditor_undo_type type;
-    int cx, cy;             /* Cursor position */
-    int character;          /* Character for insert/delete operations */
-    char *line;            /* Line content */
-    int line_size;         /* Size of the line */
+    int cx, cy;        /* Cursor position */
+    int character;     /* Character for insert/delete operations */
+    char *line;        /* Line content */
+    int line_size;     /* Size of the line */
 } pleditor_undo_params;
 
 /* Undo/Redo operation structure */
@@ -56,38 +56,38 @@ typedef struct pleditor_undo_operation {
     enum pleditor_undo_type type;
     int cx, cy;        /* Cursor position before the operation */
     int character;     /* Character for insert/delete operations */
-    char *line;       /* Line content for line operations */
-    int line_size;    /* Size of the line */
+    char *line;        /* Line content for line operations */
+    int line_size;     /* Size of the line */
     struct pleditor_undo_operation *next;
 } pleditor_undo_operation;
 
 /* Row of text in the editor */
 typedef struct pleditor_row {
-    int size;                /* Size of the text */
-    char *chars;            /* Raw text content */
-    int render_size;        /* Size of the rendered text */
-    char *render;           /* Rendered text (with tab expansion) */
+    int size;          /* Size of the text */
+    char *chars;       /* Raw text content */
+    int render_size;   /* Size of the rendered text */
+    char *render;      /* Rendered text (with tab expansion) */
     pleditor_highlight_row *hl; /* Syntax highlighting for this row */
 } pleditor_row;
 
 /* Editor state */
 typedef struct pleditor_state {
-    int cx, cy;             /* Cursor position */
-    int rx;                 /* Render X position (for tabs) */
-    int row_offset;         /* Row scroll offset */
-    int col_offset;         /* Column scroll offset */
-    int screen_rows;        /* Number of visible rows */
-    int screen_cols;        /* Number of visible columns */
-    int num_rows;           /* Number of rows in file */
-    pleditor_row *rows;     /* File content */
-    bool dirty;             /* File has unsaved changes */
-    char *filename;         /* Currently open filename */
-    char status_msg[80];    /* Status message */
+    int cx, cy;              /* Cursor position */
+    int rx;                  /* Render X position (for tabs) */
+    int row_offset;          /* Row scroll offset */
+    int col_offset;          /* Column scroll offset */
+    int screen_rows;         /* Number of visible rows */
+    int screen_cols;         /* Number of visible columns */
+    int num_rows;            /* Number of rows in file */
+    pleditor_row *rows;      /* File content */
+    bool dirty;              /* File has unsaved changes */
+    char *filename;          /* Currently open filename */
+    char status_msg[80];     /* Status message */
     pleditor_syntax *syntax; /* Current syntax highlighting */
-    bool show_line_numbers; /* Whether to display line numbers */
+    bool show_line_numbers;  /* Whether to display line numbers */
     pleditor_undo_operation *undo_stack; /* Stack of undo operations */
     pleditor_undo_operation *redo_stack; /* Stack of redo operations */
-    bool is_unredoing; /* Flag to prevent recursive undo/redo operations */
+    bool is_unredoing;       /* Flag to prevent recursive undo/redo operations */
 } pleditor_state;
 
 /* Function prototypes */

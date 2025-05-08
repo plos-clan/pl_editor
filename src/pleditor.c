@@ -449,7 +449,7 @@ void pleditor_draw_status_bar(pleditor_state *state, char *buffer, int *len) {
 
     char status[80], rstatus[80];
     char* display_filename = state->filename ?
-                             pleditor_truncated_path(state->filename, 20) :
+                             pleditor_truncated_path(state->filename, 30) :
                              "[No Name]";
     int status_len = snprintf(status, sizeof(status), "%s - %d lines %s",
                              display_filename,

@@ -8,9 +8,10 @@ pleditor is a simple text editor that works with terminal devices supporting VT1
 
 ## Features
 
+- Platform independent core
 - VT100 terminal interface with status bar
-- Platform-independent core that works with any VT100-compatible terminal
-- Various text editing operations (insert, delete, undo, redo, etc.)
+- Syntax highlighting for C-like, Lua and Python
+- Various operations (insert, delete, undo, redo, etc.)
 - Reference Linux implementation included
 
 ## Keyboard Shortcuts
@@ -42,8 +43,8 @@ xmake run pleditor <filename>
 
 The editor is split into platform-independent and platform-dependent code.
 
-- `pleditor.c/h`: Core editor functionality
-- `syntax.c/h`: Syntax highlighting
+- `pleditor.*`: Core editor functionality
+- `syntax.*`: Syntax highlighting
 - `terminal.h`: VT100 terminal control codes
 
 **Platform specific code:**

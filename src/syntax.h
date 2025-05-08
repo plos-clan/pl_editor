@@ -16,12 +16,12 @@ enum pleditor_highlight {
     HL_KEYWORD2,
     HL_STRING,
     HL_NUMBER,
-    HL_MATCH       /* For search */
+    HL_MATCHSEARCH
 };
 
 /* Data structure for highlighting in a row */
 typedef struct pleditor_highlight_row {
-    unsigned char *hl;      /* Highlighting for each character */
+    unsigned char *hl;          /* Highlighting for each character */
     bool hl_multiline_comment;  /* Is this row part of a multi-line comment */
 } pleditor_highlight_row;
 
