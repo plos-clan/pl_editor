@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include "syntax.h"
 
 /* Editor config */
 #define PLEDITOR_VERSION "0.1.0"
@@ -33,18 +34,6 @@ enum pleditor_key {
     PLEDITOR_DEL_KEY
 };
 
-/* Highlight types */
-enum pleditor_highlight {
-    HL_NORMAL = 0,
-    HL_COMMENT,
-    HL_MULTILINE_COMMENT,
-    HL_KEYWORD1,
-    HL_KEYWORD2,
-    HL_STRING,
-    HL_NUMBER,
-    HL_MATCH       /* For search */
-};
-
 /* Undo/Redo operation types */
 enum pleditor_undo_type {
     UNDO_INSERT_CHAR,
@@ -52,23 +41,6 @@ enum pleditor_undo_type {
     UNDO_INSERT_LINE,
     UNDO_DELETE_LINE
 };
-
-/* Data structure for highlighting in a row */
-typedef struct pleditor_highlight_row {
-    unsigned char *hl;      /* Highlighting for each character */
-    bool hl_multiline_comment;  /* Is this row part of a multi-line comment */
-} pleditor_highlight_row;
-
-/* Syntax definition structure */
-typedef struct pleditor_syntax {
-    char *filetype;         /* Language/filetype name */
-    char **filematch;       /* File patterns that match this syntax */
-    char **keywords;        /* Keywords for the language */
-    char *singleline_comment_start;  /* Single line comment start */
-    char *multiline_comment_start;   /* Multi-line comment start */
-    char *multiline_comment_end;     /* Multi-line comment end */
-    bool flags;             /* Syntax flags */
-} pleditor_syntax;
 
 /* Undo/Redo operation parameters */
 typedef struct pleditor_undo_params {

@@ -10,7 +10,7 @@ pleditor is a simple text editor that works with terminal devices supporting VT1
 
 - VT100 terminal interface with status bar
 - Platform-independent core that works with any VT100-compatible terminal
-- Various text editing operations (insert, delete, undo)
+- Various text editing operations (insert, delete, undo, redo, etc.)
 - Reference Linux implementation included
 
 ## Keyboard Shortcuts
@@ -18,6 +18,7 @@ pleditor is a simple text editor that works with terminal devices supporting VT1
 - `Ctrl-S`: Save file
 - `Ctrl-Q`: Quit
 - `Ctrl-Z`: Undo
+- `Ctrl-Y`: Redo
 - `Ctrl-R`: Toggle line numbers
 - Arrow keys: Move cursor
 - Page Up/Down: Scroll by page

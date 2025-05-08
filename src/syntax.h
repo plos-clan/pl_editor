@@ -5,6 +5,36 @@
 #define SYNTAX_H
 
 #include <stdbool.h>
+#include <stddef.h>
+
+/* Highlight types */
+enum pleditor_highlight {
+    HL_NORMAL = 0,
+    HL_COMMENT,
+    HL_MULTILINE_COMMENT,
+    HL_KEYWORD1,
+    HL_KEYWORD2,
+    HL_STRING,
+    HL_NUMBER,
+    HL_MATCH       /* For search */
+};
+
+/* Data structure for highlighting in a row */
+typedef struct pleditor_highlight_row {
+    unsigned char *hl;      /* Highlighting for each character */
+    bool hl_multiline_comment;  /* Is this row part of a multi-line comment */
+} pleditor_highlight_row;
+
+/* Syntax definition structure */
+typedef struct pleditor_syntax {
+    char *filetype;         /* Language/filetype name */
+    char **filematch;       /* File patterns that match this syntax */
+    char **keywords;        /* Keywords for the language */
+    char *singleline_comment_start;  /* Single line comment start */
+    char *multiline_comment_start;   /* Multi-line comment start */
+    char *multiline_comment_end;     /* Multi-line comment end */
+    bool flags;             /* Syntax flags */
+} pleditor_syntax;
 
 /* Forward declarations for structs defined in pleditor.h */
 struct pleditor_state;
