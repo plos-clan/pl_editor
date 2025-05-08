@@ -68,30 +68,30 @@ pleditor_syntax HLDB[] = {
         "c",
         (char*[]){"c", "h", "cpp", "hpp", "cc", "cxx", "c++", NULL},
         C_HL_keywords,
-        "//", /* Single line comment start */
-        "/*", /* Multi-line comment start */
-        "*/", /* Multi-line comment end */
-        0      /* Flags */
+        "//",     /* Single line comment start */
+        "/*",     /* Multi-line comment start */
+        "*/",     /* Multi-line comment end */
+        0         /* Flags */
     },
     /* Lua language */
     {
         "lua",
         (char*[]){"lua", NULL},
         LUA_HL_keywords,
-        "--", /* Single line comment start */
-        "--[[", /* Multi-line comment start */
-        "]]", /* Multi-line comment end */
-        0      /* Flags */
+        "--",     /* Single line comment start */
+        "--[[",   /* Multi-line comment start */
+        "]]",     /* Multi-line comment end */
+        0         /* Flags */
     },
     /* Python language */
     {
         "python",
         (char*[]){"py", "pyw", NULL},
         PYTHON_HL_keywords,
-        "#", /* Single line comment start */
+        "#",      /* Single line comment start */
         "\"\"\"", /* Multi-line comment/docstring start */
         "\"\"\"", /* Multi-line comment/docstring end */
-        0      /* Flags */
+        0         /* Flags */
     },
 };
 
@@ -135,6 +135,51 @@ static bool highlight_based_number(pleditor_row *row, int *i) {
     }
 
     return true;
+}
+
+/* Initialize syntax highlighting system */
+bool pleditor_syntax_init(pleditor_state *state) {
+    state->syntax = NULL;
+
+    /* Select syntax by filename if there is one */
+    if (state->filename) {
+        pleditor_syntax_by_name(state, state->filename);
+
+        /* Apply syntax highlighting to all rows */
+        pleditor_syntax_update_all(state);
+    }
+
+    return true;
+}
+
+/* Apply syntax highlighting to all rows in the file */
+void pleditor_syntax_update_all(pleditor_state *state) {
+    if (!state->syntax) return;
+
+    for (int i = 0; i < state->num_rows; i++) {
+        pleditor_syntax_update_row(state, i);
+    }
+}
+
+/* Map highlight values to ansi escape code */
+int pleditor_syntax_color_to_ansi(int hl) {
+    switch(hl) {
+        case HL_COMMENT:
+        case HL_MULTILINE_COMMENT:
+            return 36;  /* Cyan */
+        case HL_KEYWORD1:
+            return 33;  /* Yellow */
+        case HL_KEYWORD2:
+            return 32;  /* Green */
+        case HL_STRING:
+            return 35;  /* Magenta */
+        case HL_NUMBER:
+            return 31;  /* Red */
+        case HL_MATCH:
+            return 34;  /* Blue */
+        default:
+            return 37;  /* White (default) */
+    }
 }
 
 /* Select syntax highlighting based on file extension */
@@ -278,12 +323,12 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
             prev_sep = false;
             continue;
         }
-        
-        /* Handle special case for colon in array slices - don't highlight the colon */
-        if (c == ':' && ((i > 0 && row->hl->hl[i-1] == HL_NUMBER) || 
-                        (i+1 < row->render_size && isdigit(row->render[i+1])))) {
+
+        /* Handle special case for colon in array slices */
+        if (c == ':' && ((i > 0 && row->hl->hl[i-1] == HL_NUMBER) ||
+            (i+1 < row->render_size && isdigit(row->render[i+1])))) {
             i++;
-            prev_sep = true; /* Treat colon as separator for the next character */
+            prev_sep = true; /* Treat colon as separator */
             continue;
         }
 
@@ -319,49 +364,4 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
 
     /* Update multiline comment status for this row */
     row->hl->hl_multiline_comment = in_comment;
-}
-
-/* Map highlight values to VT100 color codes */
-int pleditor_syntax_color_to_vt100(int hl) {
-    switch(hl) {
-        case HL_COMMENT:
-        case HL_MULTILINE_COMMENT:
-            return 36;  /* Cyan */
-        case HL_KEYWORD1:
-            return 33;  /* Yellow */
-        case HL_KEYWORD2:
-            return 32;  /* Green */
-        case HL_STRING:
-            return 35;  /* Magenta */
-        case HL_NUMBER:
-            return 31;  /* Red */
-        case HL_MATCH:
-            return 34;  /* Blue */
-        default:
-            return 37;  /* White (default) */
-    }
-}
-
-/* Initialize syntax highlighting system */
-bool pleditor_syntax_init(pleditor_state *state) {
-    state->syntax = NULL;
-
-    /* Select syntax by filename if there is one */
-    if (state->filename) {
-        pleditor_syntax_by_name(state, state->filename);
-
-        /* Apply syntax highlighting to all rows */
-        pleditor_syntax_update_all(state);
-    }
-
-    return true;
-}
-
-/* Apply syntax highlighting to all rows in the file */
-void pleditor_syntax_update_all(pleditor_state *state) {
-    if (!state->syntax) return;
-
-    for (int i = 0; i < state->num_rows; i++) {
-        pleditor_syntax_update_row(state, i);
-    }
 }

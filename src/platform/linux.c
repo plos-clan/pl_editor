@@ -20,9 +20,7 @@
 /* Original terminal settings */
 static struct termios orig_termios;
 
-/**
- * Initialize the terminal for raw mode
- */
+/* Initialize the terminal for raw mode */
 bool pleditor_platform_init(void) {
     if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) {
         perror("tcgetattr");
@@ -60,9 +58,7 @@ bool pleditor_platform_init(void) {
     return true;
 }
 
-/**
- * Restore terminal settings
- */
+/* Restore terminal settings */
 void pleditor_platform_cleanup(void) {
     /* Return to normal screen buffer */
     write(STDOUT_FILENO, "\033[?1049l", 8);
@@ -71,10 +67,8 @@ void pleditor_platform_cleanup(void) {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
-/**
- * Get the terminal window size
- */
-bool pleditor_platform_get_window_size(int *rows, int *cols) {
+/* Get the terminal window size */
+bool pleditor_platform_get_size(int *rows, int *cols) {
     struct winsize ws;
 
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
@@ -86,9 +80,7 @@ bool pleditor_platform_get_window_size(int *rows, int *cols) {
     }
 }
 
-/**
- * Read a key from the terminal
- */
+/* Read a key from the terminal */
 int pleditor_platform_read_key(void) {
     int nread;
     char c;
@@ -155,35 +147,31 @@ int pleditor_platform_read_key(void) {
     return c;
 }
 
-/**
- * Write to the terminal
- */
+/* Write to the terminal */
 void pleditor_platform_write(const char *s, size_t len) {
     write(STDOUT_FILENO, s, len);
 }
 
-/**
- * Read the contents of a file
- */
+/* Read the contents of a file */
 bool pleditor_platform_read_file(const char *filename, char **buffer, size_t *len) {
     FILE *fp = fopen(filename, "r");
     if (!fp) {
         return false;
     }
 
-    // Get file size
+    /* Get file size */
     fseek(fp, 0, SEEK_END);
     size_t filesize = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    // Allocate buffer
+    /* Allocate buffer */
     *buffer = malloc(filesize + 1);
     if (!*buffer) {
         fclose(fp);
         return false;
     }
 
-    // Read file
+    /* Read file */
     size_t bytes_read = fread(*buffer, 1, filesize, fp);
     if (bytes_read < filesize) {
         free(*buffer);
@@ -191,16 +179,14 @@ bool pleditor_platform_read_file(const char *filename, char **buffer, size_t *le
         return false;
     }
 
-    // Success path - null-terminate and return
+    /* Success path - null-terminate and return */
     (*buffer)[bytes_read] = '\0';
     *len = bytes_read;
     fclose(fp);
     return true;
 }
 
-/**
- * Write buffer to a file
- */
+/* Write buffer to a file */
 bool pleditor_platform_write_file(const char *filename, const char *buffer, size_t len) {
     FILE *fp = fopen(filename, "w");
     if (!fp) {

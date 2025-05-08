@@ -21,7 +21,7 @@ bool pleditor_platform_init(void);
 void pleditor_platform_cleanup(void);
 
 /* Get terminal window size */
-bool pleditor_platform_get_window_size(int *rows, int *cols);
+bool pleditor_platform_get_size(int *rows, int *cols);
 
 /* Read a key from the terminal */
 int pleditor_platform_read_key(void);

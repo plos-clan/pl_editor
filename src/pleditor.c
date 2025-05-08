@@ -402,7 +402,7 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
 
                 for (int j = 0; j < len_to_display; j++) {
                     if (hl) {
-                        int color = pleditor_syntax_color_to_vt100(hl[j]);
+                        int color = pleditor_syntax_color_to_ansi(hl[j]);
 
                         if (color != current_color) {
                             current_color = color;
@@ -816,7 +816,7 @@ void pleditor_init(pleditor_state *state) {
     state->redo_stack = NULL; /* Initialize the redo stack */
     state->is_unredoing = false; /* Initialize unredoing flag */
 
-    if (!pleditor_platform_get_window_size(&state->screen_rows, &state->screen_cols)) {
+    if (!pleditor_platform_get_size(&state->screen_rows, &state->screen_cols)) {
         /* Fallback if window size detection fails */
         state->screen_rows = 24;
         state->screen_cols = 80;
