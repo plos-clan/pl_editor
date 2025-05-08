@@ -499,7 +499,7 @@ void pleditor_refresh_screen(pleditor_state *state) {
     pleditor_scroll(state);
 
     /* Buffer to build screen update in (large enough for entire screen) */
-    char *buffer = malloc(state->screen_rows * state->screen_cols * 10);
+    char *buffer = malloc(state->screen_rows * state->screen_cols * 5);
     int len = 0;
 
     /* Hide cursor during screen update to avoid flicker */
