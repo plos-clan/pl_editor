@@ -98,13 +98,47 @@ pleditor_syntax HLDB[] = {
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /* Is the character a separator */
-bool is_separator(int c) {
+static bool is_separator(int c) {
     return c == '\0' || isspace(c) || c == '\0' ||
     strchr(",.()+-/*=~%<>[];\\{}:", c) != NULL;
 }
 
+/* Handle hex, octal, or binary number formats */
+static bool highlight_based_number(pleditor_row *row, int *i) {
+    if (*i + 2 >= row->render_size || row->render[*i] != '0')
+        return false;
+        
+    char next = row->render[*i + 1];
+    if (!strchr("xXoObB", next))
+        return false;
+    
+    /* Highlight the prefix (0x, 0o, 0b) */
+    row->hl->hl[*i] = row->hl->hl[*i + 1] = HL_NUMBER;
+    *i += 2;
+    
+    /* Continue highlighting based on the number format */
+    while (*i < row->render_size) {
+        char c = row->render[*i];
+        bool valid;
+        
+        if (next == 'x' || next == 'X')
+            valid = isxdigit(c);
+        else if (next == 'o' || next == 'O')
+            valid = c >= '0' && c <= '7';
+        else
+            valid = c == '0' || c == '1';
+            
+        if (!valid) break;
+        
+        row->hl->hl[*i] = HL_NUMBER;
+        (*i)++;
+    }
+
+    return true;
+}
+
 /* Select syntax highlighting based on file extension */
-void pleditor_syntax_select_by_filename(pleditor_state *state, const char *filename) {
+void pleditor_syntax_by_name(pleditor_state *state, const char *filename) {
     state->syntax = NULL;
 
     /* No filename, so no highlighting */
@@ -224,39 +258,10 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
 
         /* Number handling */
         if (isdigit(c)) {
-            /* Look for hex, octal, or binary number formats */
-            if (c == '0' && i + 1 < row->render_size) {
-                /* Check for hex (0x), octal (0o), or binary (0b) prefixes */
-                char next = row->render[i + 1];
-                if ((next == 'x' || next == 'X' || next == 'o' || next == 'O' || next == 'b' || next == 'B') && 
-                    i + 2 < row->render_size) {
-                    /* Highlight the prefix (0x, 0o, 0b) */
-                    row->hl->hl[i] = HL_NUMBER;     /* 0 */
-                    row->hl->hl[i+1] = HL_NUMBER;   /* x, o, or b */
-                    i += 2;
-                    
-                    /* Continue highlighting valid digits based on the number format */
-                    while (i < row->render_size) {
-                        c = row->render[i];
-                        if (next == 'x' || next == 'X') {
-                            /* Hex: 0-9, a-f, A-F */
-                            if (!(isdigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
-                                break;
-                        } else if (next == 'o' || next == 'O') {
-                            /* Octal: 0-7 */
-                            if (!(c >= '0' && c <= '7'))
-                                break;
-                        } else if (next == 'b' || next == 'B') {
-                            /* Binary: 0-1 */
-                            if (!(c == '0' || c == '1'))
-                                break;
-                        }
-                        row->hl->hl[i] = HL_NUMBER;
-                        i++;
-                    }
-                    prev_sep = false;
-                    continue;
-                }
+            /* Check for special number formats (hex, octal, binary) */
+            if (highlight_based_number(row, &i)) {
+                prev_sep = false;
+                continue;
             }
             
             /* Regular decimal number */
@@ -343,7 +348,7 @@ bool pleditor_syntax_init(pleditor_state *state) {
 
     /* Select syntax by filename if there is one */
     if (state->filename) {
-        pleditor_syntax_select_by_filename(state, state->filename);
+        pleditor_syntax_by_name(state, state->filename);
 
         /* Apply syntax highlighting to all rows */
         pleditor_syntax_update_all(state);

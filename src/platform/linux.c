@@ -99,46 +99,58 @@ int pleditor_platform_read_key(void) {
         }
     }
 
+    /* For non-escape characters, return immediately */
+    if (c != PLEDITOR_KEY_ESC) {
+        return c;
+    }
+    
     /* Handle escape sequences */
-    if (c == PLEDITOR_KEY_ESC) {
-        char seq[3];
+    char seq[3];
 
-        if (read(STDIN_FILENO, &seq[0], 1) != 1) return PLEDITOR_KEY_ESC;
-        if (read(STDIN_FILENO, &seq[1], 1) != 1) return PLEDITOR_KEY_ESC;
+    /* Early returns for incomplete sequences */
+    if (read(STDIN_FILENO, &seq[0], 1) != 1) return PLEDITOR_KEY_ESC;
+    if (read(STDIN_FILENO, &seq[1], 1) != 1) return PLEDITOR_KEY_ESC;
 
-        if (seq[0] == '[') {
-            if (seq[1] >= '0' && seq[1] <= '9') {
-                if (read(STDIN_FILENO, &seq[2], 1) != 1) return PLEDITOR_KEY_ESC;
-                if (seq[2] == '~') {
-                    switch (seq[1]) {
-                        case '1': return PLEDITOR_HOME_KEY;
-                        case '3': return PLEDITOR_DEL_KEY;
-                        case '4': return PLEDITOR_END_KEY;
-                        case '5': return PLEDITOR_PAGE_UP;
-                        case '6': return PLEDITOR_PAGE_DOWN;
-                        case '7': return PLEDITOR_HOME_KEY;
-                        case '8': return PLEDITOR_END_KEY;
-                    }
-                }
-            } else {
+    /* Handle '[' sequence type (e.g., cursor keys) */
+    if (seq[0] == '[') {
+        /* Handle numeric escape codes (like ESC[1~) */
+        if (seq[1] >= '0' && seq[1] <= '9') {
+            if (read(STDIN_FILENO, &seq[2], 1) != 1) return PLEDITOR_KEY_ESC;
+            if (seq[2] == '~') {
                 switch (seq[1]) {
-                    case 'A': return PLEDITOR_ARROW_UP;
-                    case 'B': return PLEDITOR_ARROW_DOWN;
-                    case 'C': return PLEDITOR_ARROW_RIGHT;
-                    case 'D': return PLEDITOR_ARROW_LEFT;
-                    case 'H': return PLEDITOR_HOME_KEY;
-                    case 'F': return PLEDITOR_END_KEY;
+                    case '1': return PLEDITOR_HOME_KEY;
+                    case '3': return PLEDITOR_DEL_KEY;
+                    case '4': return PLEDITOR_END_KEY;
+                    case '5': return PLEDITOR_PAGE_UP;
+                    case '6': return PLEDITOR_PAGE_DOWN;
+                    case '7': return PLEDITOR_HOME_KEY;
+                    case '8': return PLEDITOR_END_KEY;
                 }
             }
-        } else if (seq[0] == 'O') {
-            switch (seq[1]) {
-                case 'H': return PLEDITOR_HOME_KEY;
-                case 'F': return PLEDITOR_END_KEY;
-            }
+            return PLEDITOR_KEY_ESC;
         }
-
+        
+        /* Handle arrow keys and others (like ESC[A) */
+        switch (seq[1]) {
+            case 'A': return PLEDITOR_ARROW_UP;
+            case 'B': return PLEDITOR_ARROW_DOWN;
+            case 'C': return PLEDITOR_ARROW_RIGHT;
+            case 'D': return PLEDITOR_ARROW_LEFT;
+            case 'H': return PLEDITOR_HOME_KEY;
+            case 'F': return PLEDITOR_END_KEY;
+        }
         return PLEDITOR_KEY_ESC;
     }
+    
+    /* Handle 'O' sequence type */
+    if (seq[0] == 'O') {
+        switch (seq[1]) {
+            case 'H': return PLEDITOR_HOME_KEY;
+            case 'F': return PLEDITOR_END_KEY;
+        }
+    }
+
+    return PLEDITOR_KEY_ESC;
 
     return c;
 }
@@ -179,9 +191,9 @@ bool pleditor_platform_read_file(const char *filename, char **buffer, size_t *le
         return false;
     }
 
-    (*buffer)[filesize] = '\0';
-    *len = filesize;
-
+    // Success path - null-terminate and return
+    (*buffer)[bytes_read] = '\0';
+    *len = bytes_read;
     fclose(fp);
     return true;
 }

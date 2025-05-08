@@ -423,14 +423,36 @@ void pleditor_draw_rows(pleditor_state *state, char *buffer, int *len) {
     }
 }
 
+/* Truncate long file paths with ellipsis at the beginning */
+char* pleditor_truncated_path(const char* path, size_t max_len) {
+    if (!path) return NULL;
+
+    size_t path_len = strlen(path);
+    static char truncated[80]; /* Static buffer for the truncated path */
+
+    if (path_len <= max_len) {
+        /* Path is short enough, return as is */
+        strcpy(truncated, path);
+    } else {
+        /* Path is too long, truncate with ellipsis */
+        strcpy(truncated, "...");
+        strcat(truncated, path + (path_len - (max_len - 3)));
+    }
+
+    return truncated;
+}
+
 /* Draw the status bar at the bottom of the screen */
 void pleditor_draw_status_bar(pleditor_state *state, char *buffer, int *len) {
     /* Inverse video for status bar */
     *len += sprintf(buffer + *len, VT100_INVERSE);
 
     char status[80], rstatus[80];
-    int status_len = snprintf(status, sizeof(status), " %.20s - %d lines %s",
-                             state->filename ? state->filename : "[No Name]",
+    char* display_filename = state->filename ?
+                             pleditor_truncated_path(state->filename, 20) :
+                             "[No Name]";
+    int status_len = snprintf(status, sizeof(status), "%s - %d lines %s",
+                             display_filename,
                              state->num_rows,
                              state->dirty ? "(modified)" : "");
 
@@ -516,9 +538,7 @@ void pleditor_set_status_message(pleditor_state *state, const char *fmt, ...) {
     va_end(ap);
 }
 
-/**
- * Display a prompt in the status bar and get input from the user
- */
+/* Display a prompt in the status bar and get a input */
 char* pleditor_prompt(pleditor_state *state, const char *prompt) {
     size_t bufsize = 128;
     char *buf = malloc(bufsize);
@@ -534,7 +554,7 @@ char* pleditor_prompt(pleditor_state *state, const char *prompt) {
 
         int c = pleditor_platform_read_key();
 
-        if (c == PLEDITOR_DEL_KEY || c == PLEDITOR_KEY_BACKSPACE || c == PLEDITOR_CTRL_KEY('h')) {
+        if (c == PLEDITOR_DEL_KEY || c == PLEDITOR_KEY_BACKSPACE) {
             /* Handle backspace/delete */
             if (buflen > 0) {
                 buflen--;
@@ -546,8 +566,8 @@ char* pleditor_prompt(pleditor_state *state, const char *prompt) {
                 pleditor_set_status_message(state, "");
                 return buf;
             }
-        } else if (c == PLEDITOR_KEY_ESC) {
-            /* Handle Escape */
+        } else if (c == PLEDITOR_KEY_ESC || c == PLEDITOR_CTRL_KEY('q')) {
+            /* Handle escape or quit */
             pleditor_set_status_message(state, "");
             free(buf);
             return NULL;
@@ -619,11 +639,11 @@ void pleditor_save(pleditor_state *state) {
             pleditor_set_status_message(state, "Save aborted");
             return;
         }
-        free(state->filename); /* In case it was previously set */
+        free(state->filename);
         state->filename = filename;
 
         /* Select syntax highlighting based on new filename */
-        pleditor_syntax_select_by_filename(state, state->filename);
+        pleditor_syntax_by_name(state, state->filename);
 
         /* Apply highlighting if a syntax was selected */
         if (state->syntax) {
@@ -811,12 +831,8 @@ void pleditor_open(pleditor_state *state, const char *filename) {
     free(state->filename);
 
     /* Use malloc and strcpy instead of strdup */
-    size_t filename_len = strlen(filename) + 1; /* +1 for the null terminator */
-    state->filename = malloc(filename_len);
-    if (state->filename == NULL) {
-        pleditor_set_status_message(state, "Error: Memory allocation failed");
-        return;
-    }
+    state->filename = malloc(strlen(filename) + 1);
+    if (state->filename == NULL) exit(1);
     strcpy(state->filename, filename);
 
     char *buffer;
@@ -825,10 +841,10 @@ void pleditor_open(pleditor_state *state, const char *filename) {
     if (!pleditor_platform_read_file(filename, &buffer, &len)) {
         pleditor_set_status_message(state, "New file: %s", filename);
 
-        /* Select syntax highlighting based on filename even for new files */
-        pleditor_syntax_select_by_filename(state, filename);
+        /* Select syntax highlighting based on filename */
+        pleditor_syntax_by_name(state, filename);
 
-        /* No rows to highlight yet, but set up the syntax for future input */
+        /* No rows to highlight yet */
         return;
     }
 
@@ -860,7 +876,7 @@ void pleditor_open(pleditor_state *state, const char *filename) {
     state->dirty = false;
 
     /* Select syntax highlighting based on filename */
-    pleditor_syntax_select_by_filename(state, filename);
+    pleditor_syntax_by_name(state, filename);
 
     /* Apply syntax highlighting to all rows */
     pleditor_syntax_update_all(state);
@@ -878,10 +894,10 @@ void pleditor_free(pleditor_state *state) {
 }
 
 void pleditor_push_undo(pleditor_state *state, const pleditor_undo_params *params) {
-    /* Don't record undo operations while performing an undo or redo operation */
+    /* Don't record undo operations when undoing or redoing */
     if (state->is_unredoing) return;
 
-    /* Clear redo stack when a new edit is made (can't redo after a new edit) */
+    /* Clear redo stack when a new edit is made */
     pleditor_free_unredo_stack(&state->redo_stack);
 
     pleditor_undo_operation *op = malloc(sizeof(pleditor_undo_operation));
@@ -919,7 +935,7 @@ void pleditor_free_unredo_stack(pleditor_undo_operation **stack) {
 
 void pleditor_perform_undo(pleditor_state *state) {
     if (!state->undo_stack) {
-        pleditor_set_status_message(state, "Nothing to undo - undo history is empty");
+        pleditor_set_status_message(state, "Nothing to undo");
         return;
     }
 
@@ -931,6 +947,7 @@ void pleditor_perform_undo(pleditor_state *state) {
 
     /* Save this operation to the redo stack */
     pleditor_undo_operation *redo_op = malloc(sizeof(pleditor_undo_operation));
+
     if (redo_op) {
         redo_op->type = op->type;
         redo_op->cx = op->cx;
@@ -1115,7 +1132,7 @@ void pleditor_perform_undo(pleditor_state *state) {
 
 void pleditor_perform_redo(pleditor_state *state) {
     if (!state->redo_stack) {
-        pleditor_set_status_message(state, "Nothing to redo - redo history is empty");
+        pleditor_set_status_message(state, "Nothing to redo");
         return;
     }
 
@@ -1127,6 +1144,7 @@ void pleditor_perform_redo(pleditor_state *state) {
 
     /* Save this operation to the undo stack */
     pleditor_undo_operation *undo_op = malloc(sizeof(pleditor_undo_operation));
+
     if (undo_op) {
         undo_op->type = op->type;
         undo_op->cx = op->cx;
