@@ -45,7 +45,7 @@ enum pleditor_highlight {
     HL_MATCH       /* For search */
 };
 
-/* Undo operation types */
+/* Undo/Redo operation types */
 enum pleditor_undo_type {
     UNDO_INSERT_CHAR,
     UNDO_DELETE_CHAR,
@@ -70,7 +70,7 @@ typedef struct pleditor_syntax {
     bool flags;             /* Syntax flags */
 } pleditor_syntax;
 
-/* Undo operation structure */
+/* Undo/Redo operation parameters */
 typedef struct pleditor_undo_params {
     enum pleditor_undo_type type;
     int cx, cy;             /* Cursor position */
@@ -79,7 +79,7 @@ typedef struct pleditor_undo_params {
     int line_size;         /* Size of the line */
 } pleditor_undo_params;
 
-/* Undo operation structure */
+/* Undo/Redo operation structure */
 typedef struct pleditor_undo_operation {
     enum pleditor_undo_type type;
     int cx, cy;        /* Cursor position before the operation */
@@ -114,7 +114,8 @@ typedef struct pleditor_state {
     pleditor_syntax *syntax; /* Current syntax highlighting */
     bool show_line_numbers; /* Whether to display line numbers */
     pleditor_undo_operation *undo_stack; /* Stack of undo operations */
-    bool is_undoing; /* Flag to prevent recursive undo operations */
+    pleditor_undo_operation *redo_stack; /* Stack of redo operations */
+    bool is_unredoing; /* Flag to prevent recursive undo/redo operations */
 } pleditor_state;
 
 /* Function prototypes */
@@ -134,9 +135,11 @@ int pleditor_get_line_number_width(pleditor_state *state);
 void pleditor_move_cursor(pleditor_state *state, int key);
 void pleditor_process_keypress(pleditor_state *state, int c);
 
-/* Undo functions */
+/* Undo/Redo functions */
 void pleditor_push_undo(pleditor_state *state, const pleditor_undo_params *params);
 void pleditor_perform_undo(pleditor_state *state);
+void pleditor_perform_redo(pleditor_state *state);
 void pleditor_free_undo_stack(pleditor_state *state);
+void pleditor_free_redo_stack(pleditor_state *state);
 
 #endif /* PLEDITOR_H */
