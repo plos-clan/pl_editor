@@ -2,6 +2,13 @@
 .xmake/
 build/
 
+# Cmake
+CMakeLists.txt
+cmake-build-debug/
+
+# Idea
+.idea/
+
 # MacOS Cache
 .DS_Store
 

@@ -60,6 +60,22 @@ char *PYTHON_HL_keywords[] = {
     NULL
 };
 
+/* Riddle language keywords */
+char *RIDDLE_HL_keywords[] = {
+    /* Riddle keywords */
+    "var", "val", "for", "while", "continue", "break", "if", "else", "fun",
+    "return", "import", "package", "class", "try", "catch", "override",
+    "static", "const", "public", "protected", "private", "virtual", "operator",
+
+    /* Types - keyword2 */
+    "int|" , "long|", "double|", "float|", "char|", "void|", "bool|", "short|",
+
+    /* Riddle built-in values */
+    "true|", "false|", "null|",
+
+    NULL
+};
+
 /* Syntax definitions */
 pleditor_syntax HLDB[] = {
     /* C-like language */
@@ -92,6 +108,16 @@ pleditor_syntax HLDB[] = {
         "\"\"\"", /* Multi-line comment/docstring end */
         0         /* Flags */
     },
+    /* Riddle language */
+    {
+        "riddle",
+        (char*[]){"rid", NULL},
+        RIDDLE_HL_keywords,
+        "//",     /* Single line comment start */
+        "/*",     /* Multi-line comment start */
+        "*/",     /* Multi-line comment end */
+        0
+    }
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
