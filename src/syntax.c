@@ -53,10 +53,7 @@ char *PYTHON_HL_keywords[] = {
     "True|", "False|", "None|",
 
     /* Python special identifiers */
-    "self*", "super*", "cls*", "self.*", "super.*", "__init__*", "__main__*", "__name__*", "__file__*",
-    "__str__*", "__repr__*", "__eq__*", "__lt__*", "__gt__*", "__add__*", "__sub__*",
-    "__mul__*", "__div__*", "__len__*", "__call__*", "__getitem__*", "__setitem__*",
-    "__delitem__*", "__iter__*", "__next__*", "__enter__*", "__exit__*", "__dict__*",
+    "self*", "super*", "cls*", "self.*", "super.*",
 
     /* Python built-in functions */
     "print|", "len|", "int|", "str|", "float|", "list|", "dict|", "tuple|", "set|",
@@ -142,6 +139,136 @@ static bool is_punctuation(int c) {
     return strchr(",.():;{}[]<>=", c) != NULL;
 }
 
+/* Is the character valid in an identifier */
+static bool is_identifier_char(char c) {
+    return isalnum(c) || c == '_';
+}
+
+/* Highlight function or class name in definitions or calls */
+static void highlight_function_class(pleditor_state *state, pleditor_row *row, int *i) {
+    char *line = row->render;
+    int line_len = row->render_size;
+
+    /* Skip if position is out of bounds */
+    if (*i >= line_len) return;
+
+    /* Check for function/class definition keywords */
+    bool is_def = false;
+    int kw_len = 0;
+    int j, idx;
+
+    /* Look ahead for patterns based on language */
+    if (state->syntax) {
+        if (strcmp(state->syntax->filetype, "python") == 0) {
+            /* Python: Check for 'def ' or 'class ' */
+            if (*i > 0 && is_separator(line[*i - 1])) {
+                if (*i + 3 < line_len && strncmp(&line[*i], "def ", 4) == 0) {
+                    is_def = true;
+                    kw_len = 4;
+                } else if (*i + 5 < line_len && strncmp(&line[*i], "class ", 6) == 0) {
+                    is_def = true;
+                    kw_len = 6;
+                }
+            }
+        } else if (strcmp(state->syntax->filetype, "lua") == 0) {
+            /* Lua: Check for 'function ' */
+            if (*i > 0 && is_separator(line[*i - 1])) {
+                if (*i + 8 < line_len && strncmp(&line[*i], "function ", 9) == 0) {
+                    is_def = true;
+                    kw_len = 9;
+                }
+            }
+        } else if (strcmp(state->syntax->filetype, "c") == 0 ||
+                   strcmp(state->syntax->filetype, "riddle") == 0) {
+            /* C/C++/Riddle: Check for patterns */
+
+            /* Class declaration: "class Name" */
+            if (*i > 0 && is_separator(line[*i - 1])) {
+                if (*i + 5 < line_len && strncmp(&line[*i], "class ", 6) == 0) {
+                    is_def = true;
+                    kw_len = 6;
+                } else if (*i + 3 < line_len && strncmp(&line[*i], "struct ", 7) == 0) {
+                    is_def = true;
+                    kw_len = 7;
+                }
+            }
+
+            /* C function definition check: find identifier before ( with possible type and space before */
+            if (!is_def && *i > 0) {
+                /* Check for function pattern: Look for spaces, then identifier, then ( */
+                for (j = *i; j < line_len && is_identifier_char(line[j]); j++);
+
+                /* If it's followed by a ( after possible whitespace, it might be a function */
+                idx = j;
+                while (idx < line_len && isspace(line[idx])) idx++;
+
+                if (idx < line_len && line[idx] == '(') {
+                    /* Likely a function, check if declaration or call */
+                    bool has_body = false;
+
+                    /* Skip to the end of the parameter list */
+                    int paren_level = 1;
+                    idx++;
+                    while (idx < line_len && paren_level > 0) {
+                        if (line[idx] == '(') paren_level++;
+                        else if (line[idx] == ')') paren_level--;
+                        idx++;
+                    }
+
+                    /* Check for { after the closing ) - indicates a function definition */
+                    while (idx < line_len && isspace(line[idx])) idx++;
+                    if (idx < line_len && line[idx] == '{') has_body = true;
+
+                    /* If it's a definition or we're not sure, highlight it */
+                    if (has_body || (j > *i)) {
+                        for (idx = *i; idx < j; idx++) {
+                            row->hl->hl[idx] = HL_FUNC_CLASS_NAME;
+                        }
+                        *i = j - 1; /* position just before the end */
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    if (is_def) {
+        /* Skip the keyword and spaces */
+        *i += kw_len;
+        while (*i < line_len && isspace(line[*i])) (*i)++;
+
+        /* Highlight the function/class name */
+        int name_start = *i;
+        while (*i < line_len && is_identifier_char(line[*i])) (*i)++;
+
+        if (*i > name_start) {
+            for (j = name_start; j < *i; j++) {
+                row->hl->hl[j] = HL_FUNC_CLASS_NAME;
+            }
+            /* Don't increment i again since the loop will do it */
+            (*i)--;
+        }
+    } else {
+        /* Check for function calls: name(... */
+        int name_start = *i;
+        while (*i < line_len && is_identifier_char(line[*i])) (*i)++;
+
+        /* If we have an identifier followed by a parenthesis, it's likely a function call */
+        if (*i > name_start) {
+            idx = *i;
+            while (idx < line_len && isspace(line[idx])) idx++;
+
+            if (idx < line_len && line[idx] == '(') {
+                for (j = name_start; j < *i; j++) {
+                    row->hl->hl[j] = HL_FUNC_CLASS_NAME;
+                }
+            }
+        }
+        /* Don't increment i again since the loop will do it */
+        (*i)--;
+    }
+}
+
 /* Handle punctuation highlighting */
 static void highlight_punctuation(pleditor_row *row, int i) {
     if (i < row->render_size && is_punctuation(row->render[i])) {
@@ -212,9 +339,9 @@ int pleditor_syntax_color_to_ansi(int hl) {
     switch(hl) {
         case HL_COMMENT:
         case HL_MULTILINE_COMMENT:
-            return 36;  /* Cyan */
+            return 90;  /* Gray */
         case HL_KEYWORD1:
-            return 33;  /* Yellow */
+            return 34;  /* Blue */
         case HL_KEYWORD2:
             return 32;  /* Green */
         case HL_STRING:
@@ -224,7 +351,9 @@ int pleditor_syntax_color_to_ansi(int hl) {
         case HL_PUNCTUATION:
             return 33;  /* Yellow */
         case HL_SPECIAL_IDENT:
-            return 35;  /* Magenta */
+            return 32;  /* Green */
+        case HL_FUNC_CLASS_NAME:
+            return 36;  /* Cyan */
         default:
             return 37;  /* White (default) */
     }
@@ -433,6 +562,11 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
 
         /* Highlight punctuation */
         highlight_punctuation(row, i);
+
+        /* Check for function or class names */
+        if ((isalpha(c) || c == '_') && prev_sep) {
+            highlight_function_class(state, row, &i);
+        }
 
         /* Special handling for Python indentation */
         if (state->syntax && strcmp(state->syntax->filetype, "python") == 0) {
