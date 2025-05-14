@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     while (!state.should_quit) {
         pleditor_refresh_screen(&state);
         int c = pleditor_platform_read_key();
-        pleditor_process_keypress(&state, c);
+        pleditor_handle_keypress(&state, c);
     }
 
     /* Cleanup resources and restore terminal status */

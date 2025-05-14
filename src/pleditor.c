@@ -104,15 +104,15 @@ void pleditor_insert_char(pleditor_state *state, int c) {
     }
 
     /* Record the operation for undo - store the character being inserted */
-    pleditor_undo_params params = {
-        .type = UNDO_INSERT_CHAR,
+    pleditor_operation_params params = {
+        .type = OP_INSERT_CHAR,
         .cx = state->cx,
         .cy = state->cy,
         .character = c,
         .line = NULL,
         .line_size = 0
     };
-    pleditor_push_undo(state, &params);
+    pleditor_record_operation(state, &params);
 
     if (state->cy == state->num_rows) {
         pleditor_insert_row(state, state->num_rows, "", 0);
@@ -141,26 +141,26 @@ void pleditor_insert_newline(pleditor_state *state) {
         pleditor_row *row = &state->rows[state->cy];
 
         /* Store a copy of the entire row for undoing properly */
-        pleditor_undo_params params = {
-            .type = UNDO_INSERT_LINE,
+        pleditor_operation_params params = {
+            .type = OP_INSERT_LINE,
             .cx = state->cx,
             .cy = state->cy,
             .character = 0,
             .line = row->chars,
             .line_size = row->size
         };
-        pleditor_push_undo(state, &params);
+        pleditor_record_operation(state, &params);
     } else {
         /* If we're at the end of the file, just record the position */
-        pleditor_undo_params params = {
-            .type = UNDO_INSERT_LINE,
+        pleditor_operation_params params = {
+            .type = OP_INSERT_LINE,
             .cx = state->cx,
             .cy = state->cy,
             .character = 0,
             .line = NULL,
             .line_size = 0
         };
-        pleditor_push_undo(state, &params);
+        pleditor_record_operation(state, &params);
     }
 
     if (state->cx == 0) {
@@ -191,15 +191,15 @@ void pleditor_delete_char(pleditor_state *state) {
     if (state->cx > 0) {
         /* Record the operation for undo - save the character that will be deleted */
         int del_char = row->chars[state->cx - 1];
-        pleditor_undo_params params = {
-            .type = UNDO_DELETE_CHAR,
+        pleditor_operation_params params = {
+            .type = OP_DELETE_CHAR,
             .cx = state->cx - 1,
             .cy = state->cy,
             .character = del_char,
             .line = NULL,
             .line_size = 0
         };
-        pleditor_push_undo(state, &params);
+        pleditor_record_operation(state, &params);
 
         memmove(&row->chars[state->cx - 1], &row->chars[state->cx], row->size - state->cx + 1);
         row->size--;
@@ -217,15 +217,15 @@ void pleditor_delete_char(pleditor_state *state) {
         pleditor_row *prev_row = &state->rows[state->cy - 1];
 
         /* Save the line for undo */
-        pleditor_undo_params params = {
-            .type = UNDO_DELETE_LINE,
+        pleditor_operation_params params = {
+            .type = OP_DELETE_LINE,
             .cx = prev_row->size,  /* Store previous row's end position */
             .cy = state->cy,
             .character = 0,
             .line = row->chars,
             .line_size = row->size
         };
-        pleditor_push_undo(state, &params);
+        pleditor_record_operation(state, &params);
 
         /* Adjust cursor position for undo to beginning of previous row */
         state->cx = prev_row->size;
@@ -248,7 +248,7 @@ void pleditor_delete_char(pleditor_state *state) {
 }
 
 /* Calculate the number of digits in a given number */
-int digit_count(int number) {
+static int digit_count(int number) {
     if (number <= 0) return 1; /* Handle 0 and negative cases */
 
     int count = 0;
@@ -679,7 +679,7 @@ void pleditor_save(pleditor_state *state) {
 }
 
 /* Process a keypress */
-void pleditor_process_keypress(pleditor_state *state, int c) {
+void pleditor_handle_keypress(pleditor_state *state, int c) {
     static int quit_times = PLEDITOR_QUIT_CONFIRM_TIMES;
 
     /* If in search mode, handle search-specific keys */
@@ -735,11 +735,11 @@ void pleditor_process_keypress(pleditor_state *state, int c) {
             break;
 
         case PLEDITOR_CTRL_KEY('z'):
-            pleditor_perform_undo(state);
+            pleditor_apply_undo(state);
             break;
 
         case PLEDITOR_CTRL_KEY('y'):
-            pleditor_perform_redo(state);
+            pleditor_apply_redo(state);
             break;
 
         case PLEDITOR_KEY_BACKSPACE:
@@ -763,7 +763,7 @@ void pleditor_process_keypress(pleditor_state *state, int c) {
 
             /* Update the undo operation with the original cursor position
              * and mark the position by making cx negative to signal it was a DEL operation */
-            if (state->undo_stack && state->undo_stack->type == UNDO_DELETE_CHAR) {
+            if (state->undo_stack && state->undo_stack->type == OP_DELETE_CHAR) {
                 state->undo_stack->cx = -orig_cx - 1; /* Store as negative to mark DEL op */
                 state->undo_stack->cy = orig_cy;
             }
@@ -925,18 +925,18 @@ void pleditor_free(pleditor_state *state) {
     free(state->rows);
     free(state->filename);
     free(state->search_query);
-    pleditor_free_unredo_stack(&state->undo_stack);
-    pleditor_free_unredo_stack(&state->redo_stack);
+    pleditor_free_operation_stack(&state->undo_stack);
+    pleditor_free_operation_stack(&state->redo_stack);
 }
 
-void pleditor_push_undo(pleditor_state *state, const pleditor_undo_params *params) {
+void pleditor_record_operation(pleditor_state *state, const pleditor_operation_params *params) {
     /* Don't record undo operations when undoing or redoing */
     if (state->is_unredoing) return;
 
     /* Clear redo stack when a new edit is made */
-    pleditor_free_unredo_stack(&state->redo_stack);
+    pleditor_free_operation_stack(&state->redo_stack);
 
-    pleditor_undo_operation *op = malloc(sizeof(pleditor_undo_operation));
+    pleditor_operation *op = malloc(sizeof(pleditor_operation));
     if (!op) return;
 
     op->type = params->type;
@@ -960,10 +960,10 @@ void pleditor_push_undo(pleditor_state *state, const pleditor_undo_params *param
     state->undo_stack = op;
 }
 
-void pleditor_free_unredo_stack(pleditor_undo_operation **stack) {
-    pleditor_undo_operation *op = *stack;
+void pleditor_free_operation_stack(pleditor_operation **stack) {
+    pleditor_operation *op = *stack;
     while (op) {
-        pleditor_undo_operation *next = op->next;
+        pleditor_operation *next = op->next;
         if (op->line) free(op->line);
         free(op);
         op = next;
@@ -971,7 +971,7 @@ void pleditor_free_unredo_stack(pleditor_undo_operation **stack) {
     *stack = NULL;
 }
 
-void pleditor_perform_undo(pleditor_state *state) {
+void pleditor_apply_undo(pleditor_state *state) {
     if (!state->undo_stack) {
         pleditor_set_status_message(state, "Nothing to undo");
         return;
@@ -980,11 +980,11 @@ void pleditor_perform_undo(pleditor_state *state) {
     /* Set flag to prevent recording operations while undoing */
     state->is_unredoing = true;
 
-    pleditor_undo_operation *op = state->undo_stack;
+    pleditor_operation *op = state->undo_stack;
     state->undo_stack = op->next;
 
     /* Save this operation to the redo stack */
-    pleditor_undo_operation *redo_op = malloc(sizeof(pleditor_undo_operation));
+    pleditor_operation *redo_op = malloc(sizeof(pleditor_operation));
 
     if (redo_op) {
         redo_op->type = op->type;
@@ -1007,7 +1007,7 @@ void pleditor_perform_undo(pleditor_state *state) {
     }
 
     switch (op->type) {
-        case UNDO_INSERT_CHAR:
+        case OP_INSERT_CHAR:
             /* For insert char, we need to delete the character that was inserted */
             state->cx = op->cx;
             state->cy = op->cy;
@@ -1029,7 +1029,7 @@ void pleditor_perform_undo(pleditor_state *state) {
             }
             break;
 
-        case UNDO_DELETE_CHAR:
+        case OP_DELETE_CHAR:
             /* For delete char, we need to re-insert the character */
             bool is_del_operation = false;
 
@@ -1067,7 +1067,7 @@ void pleditor_perform_undo(pleditor_state *state) {
             }
             break;
 
-        case UNDO_INSERT_LINE:
+        case OP_INSERT_LINE:
             /* For insert line, we need to properly merge the split lines back */
             if (state->cy < state->num_rows) {
                 /* Set cursor to the row that had the Enter key pressed */
@@ -1106,7 +1106,7 @@ void pleditor_perform_undo(pleditor_state *state) {
             }
             break;
 
-        case UNDO_DELETE_LINE:
+        case OP_DELETE_LINE:
             /* Only break if the line pointer is NULL */
             if (!op->line) break;
 
@@ -1169,7 +1169,7 @@ void pleditor_perform_undo(pleditor_state *state) {
     pleditor_set_status_message(state, "Undo successful");
 }
 
-void pleditor_perform_redo(pleditor_state *state) {
+void pleditor_apply_redo(pleditor_state *state) {
     if (!state->redo_stack) {
         pleditor_set_status_message(state, "Nothing to redo");
         return;
@@ -1178,11 +1178,11 @@ void pleditor_perform_redo(pleditor_state *state) {
     /* Set flag to prevent recording operations while redoing */
     state->is_unredoing = true;
 
-    pleditor_undo_operation *op = state->redo_stack;
+    pleditor_operation *op = state->redo_stack;
     state->redo_stack = op->next;
 
     /* Save this operation to the undo stack */
-    pleditor_undo_operation *undo_op = malloc(sizeof(pleditor_undo_operation));
+    pleditor_operation *undo_op = malloc(sizeof(pleditor_operation));
 
     if (undo_op) {
         undo_op->type = op->type;
@@ -1207,7 +1207,7 @@ void pleditor_perform_redo(pleditor_state *state) {
     }
 
     switch (op->type) {
-        case UNDO_INSERT_CHAR:
+        case OP_INSERT_CHAR:
             /* For redo of insert, we need to re-insert the character */
             state->cx = op->cx;
             state->cy = op->cy;
@@ -1234,7 +1234,7 @@ void pleditor_perform_redo(pleditor_state *state) {
             }
             break;
 
-        case UNDO_DELETE_CHAR:
+        case OP_DELETE_CHAR:
             /* For redo of delete, we need to delete the character again */
             bool is_del_operation = false;
 
@@ -1279,7 +1279,7 @@ void pleditor_perform_redo(pleditor_state *state) {
             }
             break;
 
-        case UNDO_INSERT_LINE:
+        case OP_INSERT_LINE:
             /* For redo of line insert, we need to re-insert the newline */
             state->cx = op->cx;
             state->cy = op->cy;
@@ -1318,7 +1318,7 @@ void pleditor_perform_redo(pleditor_state *state) {
             }
             break;
 
-        case UNDO_DELETE_LINE:
+        case OP_DELETE_LINE:
             /* For redo of line delete, we need to delete the line again */
             state->cx = op->cx;
             state->cy = op->cy;
