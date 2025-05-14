@@ -136,7 +136,7 @@ static bool is_separator(int c) {
 
 /* Is the character a punctuation mark to highlight */
 static bool is_punctuation(int c) {
-    return strchr(",.():;{}[]<>=", c) != NULL;
+    return strchr(",.():;{}[]<>=%+-*/&|^~!", c) != NULL;
 }
 
 /* Is the character valid in an identifier */
@@ -271,8 +271,40 @@ static void highlight_function_class(pleditor_state *state, pleditor_row *row, i
 
 /* Handle punctuation highlighting */
 static void highlight_punctuation(pleditor_row *row, int i) {
+    /* Check for single character punctuation */
     if (i < row->render_size && is_punctuation(row->render[i])) {
         row->hl->hl[i] = HL_PUNCTUATION;
+        
+        /* Check for compound operators */
+        if (i + 1 < row->render_size) {
+            char c1 = row->render[i];
+            char c2 = row->render[i + 1];
+            
+            /* Check for common compound operators where second char is '=' */
+            if (c2 == '=' && strchr("+-*/=!&|^<>%", c1) != NULL) {
+                row->hl->hl[i + 1] = HL_PUNCTUATION;
+            }
+            
+            /* Check for increment/decrement operators */
+            else if ((c1 == '+' && c2 == '+') || (c1 == '-' && c2 == '-')) {
+                row->hl->hl[i + 1] = HL_PUNCTUATION;
+            }
+            
+            /* Check for shift operators */
+            else if ((c1 == '<' && c2 == '<') || (c1 == '>' && c2 == '>')) {
+                row->hl->hl[i + 1] = HL_PUNCTUATION;
+            }
+            
+            /* Check for logical operators */
+            else if ((c1 == '&' && c2 == '&') || (c1 == '|' && c2 == '|')) {
+                row->hl->hl[i + 1] = HL_PUNCTUATION;
+            }
+            
+            /* Check for structure dereference operator -> */
+            else if (c1 == '-' && c2 == '>') {
+                row->hl->hl[i + 1] = HL_PUNCTUATION;
+            }
+        }
     }
 }
 
