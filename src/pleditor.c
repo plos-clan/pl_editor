@@ -689,7 +689,7 @@ void pleditor_handle_keypress(pleditor_state *state, int c) {
                 pleditor_search_next(state);
                 return;
             case PLEDITOR_CTRL_KEY('p'):
-                pleditor_search_prev(state);
+                pleditor_search_previous(state);
                 return;
             case '\r':
             case '\n':
@@ -1482,7 +1482,7 @@ void pleditor_search_next(pleditor_state *state) {
 /**
  * Find the previous occurrence of the search query
  */
-void pleditor_search_prev(pleditor_state *state) {
+void pleditor_search_previous(pleditor_state *state) {
     if (!state->search_query) {
         return;
     }

@@ -125,7 +125,7 @@ void pleditor_free_operation_stack(pleditor_operation **stack);
 
 void pleditor_search_init(pleditor_state *state);
 void pleditor_search_next(pleditor_state *state);
-void pleditor_search_prev(pleditor_state *state);
+void pleditor_search_previous(pleditor_state *state);
 void pleditor_search_exit(pleditor_state *state);
 
 #endif /* PLEDITOR_H */

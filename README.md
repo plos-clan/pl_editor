@@ -10,8 +10,8 @@ pleditor is a simple text editor that works with terminal devices supporting VT1
 
 - Platform independent core
 - VT100 terminal interface with status bar
-- Syntax highlighting for C-like, Lua and Python
-- Various operations (insert, delete, undo, redo, etc.)
+- Colorful syntax highlighting
+- Various operations (insert, delete, undo, redo, search, etc.)
 - Reference Linux implementation included
 
 ## Keyboard Shortcuts
@@ -20,6 +20,9 @@ pleditor is a simple text editor that works with terminal devices supporting VT1
 - `Ctrl-Q`: Quit
 - `Ctrl-Z`: Undo
 - `Ctrl-Y`: Redo
+- `Ctrl-F`: Search
+    - `Ctrl-N`: Next match
+    - `Ctrl-P`: Previous match
 - `Ctrl-R`: Toggle line numbers
 - Arrow keys: Move cursor
 - Page Up/Down: Scroll by page
