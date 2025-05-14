@@ -68,9 +68,9 @@ void pleditor_insert_row(pleditor_state *state, int at, char *s, size_t len) {
     pleditor_update_row(state, &state->rows[at]);
 
     /* Update highlighting for the row if syntax highlighting is enabled */
-    if (state->syntax) {
-        pleditor_syntax_update_row(state, at);
-    }
+if (state->syntax) {
+    pleditor_syntax_update_ml_comments(state, at);
+}
 
     state->num_rows++;
     state->dirty = true;
@@ -125,9 +125,9 @@ void pleditor_insert_char(pleditor_state *state, int c) {
     row->chars[state->cx] = c;
     pleditor_update_row(state, row);
 
-    /* Update syntax highlighting for the modified row */
+    /* Update syntax highlighting for affected rows */
     if (state->syntax) {
-        pleditor_syntax_update_row(state, state->cy);
+        pleditor_syntax_update_ml_comments(state, state->cy);
     }
 
     state->cx++;
@@ -173,9 +173,9 @@ void pleditor_insert_newline(pleditor_state *state) {
         row->chars[row->size] = '\0';
         pleditor_update_row(state, row);
 
-        /* Update syntax highlighting for the modified current row */
+        /* Update syntax highlighting for the modified current row and all affected rows */
         if (state->syntax) {
-            pleditor_syntax_update_row(state, state->cy);
+            pleditor_syntax_update_ml_comments(state, state->cy);
         }
     }
     state->cy++;
@@ -206,9 +206,9 @@ void pleditor_delete_char(pleditor_state *state) {
         state->cx--;
         pleditor_update_row(state, row);
 
-        /* Update syntax highlighting for the modified row */
+        /* Update syntax highlighting for affected rows */
         if (state->syntax) {
-            pleditor_syntax_update_row(state, state->cy);
+            pleditor_syntax_update_ml_comments(state, state->cy);
         }
 
         state->dirty = true;
@@ -237,9 +237,9 @@ void pleditor_delete_char(pleditor_state *state) {
         prev_row->chars[prev_row->size] = '\0';
         pleditor_update_row(state, prev_row);
 
-        /* Update syntax highlighting for the modified previous row */
+        /* Update syntax highlighting for affected rows */
         if (state->syntax) {
-            pleditor_syntax_update_row(state, state->cy - 1);
+            pleditor_syntax_update_ml_comments(state, state->cy - 1);
         }
 
         pleditor_delete_row(state, state->cy);
@@ -645,7 +645,7 @@ void pleditor_save(pleditor_state *state) {
         state->filename = filename;
 
         /* Select syntax highlighting based on new filename */
-        pleditor_syntax_by_name(state, state->filename);
+        pleditor_syntax_by_fileext(state, state->filename);
 
         /* Apply highlighting if a syntax was selected */
         if (state->syntax) {
@@ -845,7 +845,7 @@ bool pleditor_open(pleditor_state *state, const char *filename) {
         pleditor_set_status_message(state, "New file: %s", filename);
 
         /* Select syntax highlighting based on filename */
-        pleditor_syntax_by_name(state, filename);
+        pleditor_syntax_by_fileext(state, filename);
 
         /* No rows to highlight yet */
         return true;
@@ -879,7 +879,7 @@ bool pleditor_open(pleditor_state *state, const char *filename) {
     state->dirty = false;
 
     /* Select syntax highlighting based on filename */
-    pleditor_syntax_by_name(state, filename);
+    pleditor_syntax_by_fileext(state, filename);
 
     /* Apply syntax highlighting to all rows */
     pleditor_syntax_update_all(state);
@@ -992,7 +992,7 @@ void pleditor_perform_undo(pleditor_state *state) {
                     pleditor_update_row(state, row);
                     state->dirty = true;
                     if (state->syntax) {
-                        pleditor_syntax_update_row(state, state->cy);
+                        pleditor_syntax_update_ml_comments(state, state->cy);
                     }
                 }
             }
@@ -1025,7 +1025,7 @@ void pleditor_perform_undo(pleditor_state *state) {
                 pleditor_update_row(state, row);
 
                 if (state->syntax) {
-                    pleditor_syntax_update_row(state, state->cy);
+                    pleditor_syntax_update_ml_comments(state, state->cy);
                 }
 
                 /* Only increment cursor for backspace, not for DEL */
@@ -1091,7 +1091,7 @@ void pleditor_perform_undo(pleditor_state *state) {
                     pleditor_update_row(state, prev_row);
 
                     if (state->syntax) {
-                        pleditor_syntax_update_row(state, op->cy - 1);
+                        pleditor_syntax_update_ml_comments(state, op->cy - 1);
                     }
                 } else {
                     /* Original backspace at line start case */
@@ -1106,7 +1106,7 @@ void pleditor_perform_undo(pleditor_state *state) {
                             pleditor_update_row(state, prev_row);
 
                             if (state->syntax) {
-                                pleditor_syntax_update_row(state, op->cy - 1);
+                                pleditor_syntax_update_ml_comments(state, op->cy - 1);
                             }
                         }
                 }
@@ -1195,7 +1195,7 @@ void pleditor_perform_redo(pleditor_state *state) {
                 pleditor_update_row(state, row);
 
                 if (state->syntax) {
-                    pleditor_syntax_update_row(state, state->cy);
+                    pleditor_syntax_update_ml_comments(state, state->cy);
                 }
 
                 state->cx++;
@@ -1242,7 +1242,7 @@ void pleditor_perform_redo(pleditor_state *state) {
                     pleditor_update_row(state, row);
                     state->dirty = true;
                     if (state->syntax) {
-                        pleditor_syntax_update_row(state, state->cy);
+                        pleditor_syntax_update_ml_comments(state, state->cy);
                     }
                 }
             }
@@ -1328,9 +1328,9 @@ void pleditor_perform_redo(pleditor_state *state) {
                     prev_row->chars[prev_row->size] = '\0';
                     pleditor_update_row(state, prev_row);
 
-                    /* Update syntax highlighting for the modified row */
+                    /* Update syntax highlighting for the next row and all affected rows */
                     if (state->syntax) {
-                        pleditor_syntax_update_row(state, state->cy - 1);
+                        pleditor_syntax_update_ml_comments(state, state->cy - 1);
                     }
 
                     /* Delete the line */

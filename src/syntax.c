@@ -168,7 +168,7 @@ bool pleditor_syntax_init(pleditor_state *state) {
 
     /* Select syntax by filename if there is one */
     if (state->filename) {
-        pleditor_syntax_by_name(state, state->filename);
+        pleditor_syntax_by_fileext(state, state->filename);
 
         /* Apply syntax highlighting to all rows */
         pleditor_syntax_update_all(state);
@@ -208,7 +208,7 @@ int pleditor_syntax_color_to_ansi(int hl) {
 }
 
 /* Select syntax highlighting based on file extension */
-void pleditor_syntax_by_name(pleditor_state *state, const char *filename) {
+void pleditor_syntax_by_fileext(pleditor_state *state, const char *filename) {
     state->syntax = NULL;
 
     /* No filename, so no highlighting */
@@ -389,4 +389,19 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
 
     /* Update multiline comment status for this row */
     row->hl->hl_multiline_comment = in_comment;
+}
+
+/* Update syntax highlighting for rows affected by multi-line comments */
+void pleditor_syntax_update_ml_comments(pleditor_state *state, int start_row) {
+    if (!state->syntax) return;
+
+    /* Update the starting row and all subsequent rows that might be affected */
+    for (int i = start_row; i < state->num_rows; i++) {
+        pleditor_syntax_update_row(state, i);
+
+        /* Stop updating when we reach a row not affected by multi-line comments */
+        if (i > start_row && !state->rows[i].hl->hl_multiline_comment) {
+            break;
+        }
+    }
 }

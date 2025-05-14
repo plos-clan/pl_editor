@@ -42,8 +42,9 @@ typedef struct pleditor_state pleditor_state;
 /* Function prototypes */
 bool pleditor_syntax_init(pleditor_state *state);
 int pleditor_syntax_color_to_ansi(int hl);
+void pleditor_syntax_by_fileext(pleditor_state *state, const char *filename);
 void pleditor_syntax_update_row(pleditor_state *state, int row_idx);
 void pleditor_syntax_update_all(pleditor_state *state);
-void pleditor_syntax_by_name(pleditor_state *state, const char *filename);
+void pleditor_syntax_update_ml_comments(pleditor_state *state, int start_row);
 
 #endif /* SYNTAX_H */
