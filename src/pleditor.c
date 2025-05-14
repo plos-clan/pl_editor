@@ -69,7 +69,7 @@ void pleditor_insert_row(pleditor_state *state, int at, char *s, size_t len) {
 
     /* Update highlighting for the row if syntax highlighting is enabled */
 if (state->syntax) {
-    pleditor_syntax_update_ml_comments(state, at);
+    pleditor_syntax_update_multiline(state, at);
 }
 
     state->num_rows++;
@@ -127,7 +127,7 @@ void pleditor_insert_char(pleditor_state *state, int c) {
 
     /* Update syntax highlighting for affected rows */
     if (state->syntax) {
-        pleditor_syntax_update_ml_comments(state, state->cy);
+        pleditor_syntax_update_multiline(state, state->cy);
     }
 
     state->cx++;
@@ -175,7 +175,7 @@ void pleditor_insert_newline(pleditor_state *state) {
 
         /* Update syntax highlighting for the modified current row and all affected rows */
         if (state->syntax) {
-            pleditor_syntax_update_ml_comments(state, state->cy);
+            pleditor_syntax_update_multiline(state, state->cy);
         }
     }
     state->cy++;
@@ -208,7 +208,7 @@ void pleditor_delete_char(pleditor_state *state) {
 
         /* Update syntax highlighting for affected rows */
         if (state->syntax) {
-            pleditor_syntax_update_ml_comments(state, state->cy);
+            pleditor_syntax_update_multiline(state, state->cy);
         }
 
         state->dirty = true;
@@ -239,7 +239,7 @@ void pleditor_delete_char(pleditor_state *state) {
 
         /* Update syntax highlighting for affected rows */
         if (state->syntax) {
-            pleditor_syntax_update_ml_comments(state, state->cy - 1);
+            pleditor_syntax_update_multiline(state, state->cy - 1);
         }
 
         pleditor_delete_row(state, state->cy);
@@ -682,6 +682,24 @@ void pleditor_save(pleditor_state *state) {
 void pleditor_process_keypress(pleditor_state *state, int c) {
     static int quit_times = PLEDITOR_QUIT_CONFIRM_TIMES;
 
+    /* If in search mode, handle search-specific keys */
+    if (state->is_searching) {
+        switch (c) {
+            case PLEDITOR_CTRL_KEY('n'):
+                pleditor_search_next(state);
+                return;
+            case PLEDITOR_CTRL_KEY('p'):
+                pleditor_search_prev(state);
+                return;
+            case '\r':
+            case '\n':
+            case PLEDITOR_KEY_ESC:
+            case PLEDITOR_CTRL_KEY('q'):
+                pleditor_search_exit(state);
+                return;
+        }
+    }
+
     /* Clear status message on any keypress unless we're confirming quit */
     if (!(c == PLEDITOR_CTRL_KEY('q') && state->dirty && quit_times > 0)) {
         pleditor_set_status_message(state, "");
@@ -703,6 +721,10 @@ void pleditor_process_keypress(pleditor_state *state, int c) {
 
         case PLEDITOR_CTRL_KEY('s'):
             pleditor_save(state);
+            break;
+
+        case PLEDITOR_CTRL_KEY('f'):
+            pleditor_search_init(state);
             break;
 
         case PLEDITOR_CTRL_KEY('r'):
@@ -819,6 +841,13 @@ void pleditor_init(pleditor_state *state) {
     state->is_unredoing = false; /* Initialize unredoing flag */
     state->should_quit = false; /* Initialize quit flag */
 
+    /* Initialize search fields */
+    state->is_searching = false;
+    state->search_query = NULL;
+    state->last_match_row = -1;
+    state->last_match_col = -1;
+    state->search_direction = SEARCH_FORWARD;
+
     if (!pleditor_platform_get_size(&state->screen_rows, &state->screen_cols)) {
         /* Fallback if window size detection fails */
         state->screen_rows = 24;
@@ -889,11 +918,13 @@ bool pleditor_open(pleditor_state *state, const char *filename) {
 
 /* Free editor resources */
 void pleditor_free(pleditor_state *state) {
+    /* Free each row */
     for (int i = 0; i < state->num_rows; i++) {
         pleditor_free_row(&state->rows[i]);
     }
     free(state->rows);
     free(state->filename);
+    free(state->search_query);
     pleditor_free_unredo_stack(&state->undo_stack);
     pleditor_free_unredo_stack(&state->redo_stack);
 }
@@ -992,7 +1023,7 @@ void pleditor_perform_undo(pleditor_state *state) {
                     pleditor_update_row(state, row);
                     state->dirty = true;
                     if (state->syntax) {
-                        pleditor_syntax_update_ml_comments(state, state->cy);
+                        pleditor_syntax_update_multiline(state, state->cy);
                     }
                 }
             }
@@ -1025,7 +1056,7 @@ void pleditor_perform_undo(pleditor_state *state) {
                 pleditor_update_row(state, row);
 
                 if (state->syntax) {
-                    pleditor_syntax_update_ml_comments(state, state->cy);
+                    pleditor_syntax_update_multiline(state, state->cy);
                 }
 
                 /* Only increment cursor for backspace, not for DEL */
@@ -1091,7 +1122,7 @@ void pleditor_perform_undo(pleditor_state *state) {
                     pleditor_update_row(state, prev_row);
 
                     if (state->syntax) {
-                        pleditor_syntax_update_ml_comments(state, op->cy - 1);
+                        pleditor_syntax_update_multiline(state, op->cy - 1);
                     }
                 } else {
                     /* Original backspace at line start case */
@@ -1106,7 +1137,7 @@ void pleditor_perform_undo(pleditor_state *state) {
                             pleditor_update_row(state, prev_row);
 
                             if (state->syntax) {
-                                pleditor_syntax_update_ml_comments(state, op->cy - 1);
+                                pleditor_syntax_update_multiline(state, op->cy - 1);
                             }
                         }
                 }
@@ -1195,7 +1226,7 @@ void pleditor_perform_redo(pleditor_state *state) {
                 pleditor_update_row(state, row);
 
                 if (state->syntax) {
-                    pleditor_syntax_update_ml_comments(state, state->cy);
+                    pleditor_syntax_update_multiline(state, state->cy);
                 }
 
                 state->cx++;
@@ -1242,7 +1273,7 @@ void pleditor_perform_redo(pleditor_state *state) {
                     pleditor_update_row(state, row);
                     state->dirty = true;
                     if (state->syntax) {
-                        pleditor_syntax_update_ml_comments(state, state->cy);
+                        pleditor_syntax_update_multiline(state, state->cy);
                     }
                 }
             }
@@ -1330,7 +1361,7 @@ void pleditor_perform_redo(pleditor_state *state) {
 
                     /* Update syntax highlighting for the next row and all affected rows */
                     if (state->syntax) {
-                        pleditor_syntax_update_ml_comments(state, state->cy - 1);
+                        pleditor_syntax_update_multiline(state, state->cy - 1);
                     }
 
                     /* Delete the line */
@@ -1362,4 +1393,170 @@ void pleditor_perform_redo(pleditor_state *state) {
     free(op);
 
     pleditor_set_status_message(state, "Redo successful");
+}
+
+/**
+ * Initialize search mode with a prompt for the query
+ */
+void pleditor_search_init(pleditor_state *state) {
+    char *query = pleditor_prompt(state, "Searching");
+    if (query == NULL) {
+        return;
+    }
+
+    /* Free any existing search query */
+    if (state->search_query) {
+        free(state->search_query);
+    }
+
+    /* Save the search query and initialize search state */
+    state->search_query = query;
+    state->is_searching = true;
+    state->last_match_row = -1;
+    state->last_match_col = -1;
+    state->search_direction = SEARCH_FORWARD;
+
+    /* Perform initial search */
+    pleditor_search_next(state);
+}
+
+/**
+ * Find the next occurrence of the search query
+ */
+void pleditor_search_next(pleditor_state *state) {
+    if (!state->search_query) {
+        return;
+    }
+
+    state->search_direction = SEARCH_FORWARD;
+
+    /* Start from the current position or the last match + 1 */
+    int start_row = (state->last_match_row == -1) ? state->cy : state->last_match_row;
+    int start_col = (state->last_match_col == -1) ? state->cx + 1 : state->last_match_col + 1;
+
+    /* Loop through rows starting from the current position */
+    for (int i = 0; i < state->num_rows; i++) {
+        int current_row = (start_row + i) % state->num_rows;
+        pleditor_row *row = &state->rows[current_row];
+
+        /* If we've wrapped around to the first row, make sure we start from beginning */
+        int col_offset = (i == 0) ? start_col : 0;
+
+        if (col_offset > row->size) {
+            /* If we're beyond the end of this row, move to the next one */
+            continue;
+        }
+
+        /* Look for the search term in this row */
+        char *match = strstr(row->chars + col_offset, state->search_query);
+        if (match) {
+            /* Found a match! */
+            int match_col = match - row->chars;
+
+            /* Update cursor position to the match */
+            state->cy = current_row;
+            state->cx = match_col;
+
+            /* Save the match position */
+            state->last_match_row = current_row;
+            state->last_match_col = match_col;
+
+            /* Ensure the match is visible on screen */
+            state->row_offset = state->cy - (state->screen_rows / 2);
+            if (state->row_offset < 0) state->row_offset = 0;
+
+            pleditor_set_status_message(state, "Match found ('%s'). Ctrl-N for next, Ctrl-P for previous.",
+                                     state->search_query);
+            return;
+        }
+    }
+
+    /* No match found */
+    pleditor_set_status_message(state, "No match found for '%s'", state->search_query);
+
+    /* Reset last match position */
+    state->last_match_row = -1;
+    state->last_match_col = -1;
+}
+
+/**
+ * Find the previous occurrence of the search query
+ */
+void pleditor_search_prev(pleditor_state *state) {
+    if (!state->search_query) {
+        return;
+    }
+
+    state->search_direction = SEARCH_BACKWARD;
+
+    /* Store current state to restore if no match is found */
+    int original_cy = state->cy;
+    int original_cx = state->cx;
+
+    /* Start searching from one character before current position */
+    int start_row = (state->last_match_row == -1) ? state->cy : state->last_match_row;
+    int start_col = (state->last_match_col == -1 || state->last_match_col == 0) ?
+                    ((start_row > 0) ? state->rows[start_row-1].size : 0) :
+                    state->last_match_col - 1;
+
+    /* If we're at the beginning of the file, wrap to the end */
+    if (start_row == 0 && start_col == 0) {
+        start_row = state->num_rows - 1;
+        start_col = state->rows[start_row].size;
+    }
+
+    /* Loop through rows in reverse */
+    for (int i = 0; i < state->num_rows; i++) {
+        int current_row = (start_row - i + state->num_rows) % state->num_rows;
+        pleditor_row *row = &state->rows[current_row];
+
+        /* For the first row, start from the specified column */
+        int search_limit = (i == 0) ? start_col : row->size;
+
+        /* Search backward in this row */
+        int match_col = -1;
+        if ((size_t)search_limit >= strlen(state->search_query)) {
+            for (size_t j = 0; j <= (size_t)(search_limit - strlen(state->search_query)); j++) {
+                if (strncmp(row->chars + j, state->search_query, strlen(state->search_query)) == 0) {
+                    match_col = (int)j;
+                }
+            }
+        }
+
+        if (match_col != -1) {
+            /* Found a match! */
+            state->cy = current_row;
+            state->cx = match_col;
+
+            /* Save the match position */
+            state->last_match_row = current_row;
+            state->last_match_col = match_col;
+
+            /* Ensure the match is visible on screen */
+            state->row_offset = state->cy - (state->screen_rows / 2);
+            if (state->row_offset < 0) state->row_offset = 0;
+
+            pleditor_set_status_message(state, "Match found ('%s'). Ctrl-N for next, Ctrl-P for previous.",
+                                     state->search_query);
+            return;
+        }
+    }
+
+    /* No match found, restore original position */
+    state->cy = original_cy;
+    state->cx = original_cx;
+
+    pleditor_set_status_message(state, "No match found for '%s'", state->search_query);
+
+    /* Reset last match position */
+    state->last_match_row = -1;
+    state->last_match_col = -1;
+}
+
+/**
+ * Exit search mode
+ */
+void pleditor_search_exit(pleditor_state *state) {
+    state->is_searching = false;
+    pleditor_set_status_message(state, "Search exited");
 }

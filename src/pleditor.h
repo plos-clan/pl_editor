@@ -33,6 +33,12 @@ enum pleditor_key {
     PLEDITOR_DEL_KEY,
 };
 
+/* Direction for search */
+enum pleditor_search_direction {
+    SEARCH_FORWARD,
+    SEARCH_BACKWARD
+};
+
 /* Undo/Redo operation types */
 enum pleditor_undo_type {
     UNDO_INSERT_CHAR,
@@ -88,6 +94,11 @@ typedef struct pleditor_state {
     pleditor_undo_operation *redo_stack; /* Stack of redo operations */
     bool should_quit;        /* Flag to indicate editor should exit */
     bool is_unredoing;       /* Flag to prevent recursive undo/redo operations */
+    bool is_searching;       /* Flag to indicate search mode */
+    char *search_query;      /* Current search query */
+    int last_match_row;      /* Row of the last match found */
+    int last_match_col;      /* Column of the last match found */
+    enum pleditor_search_direction search_direction; /* Direction for search */
 } pleditor_state;
 
 /* Function prototypes */
@@ -107,10 +118,14 @@ int pleditor_get_line_number_width(pleditor_state *state);
 void pleditor_move_cursor(pleditor_state *state, int key);
 void pleditor_process_keypress(pleditor_state *state, int c);
 
-/* Undo/Redo functions */
 void pleditor_push_undo(pleditor_state *state, const pleditor_undo_params *params);
 void pleditor_perform_undo(pleditor_state *state);
 void pleditor_perform_redo(pleditor_state *state);
 void pleditor_free_unredo_stack(pleditor_undo_operation **stack);
+
+void pleditor_search_init(pleditor_state *state);
+void pleditor_search_next(pleditor_state *state);
+void pleditor_search_prev(pleditor_state *state);
+void pleditor_search_exit(pleditor_state *state);
 
 #endif /* PLEDITOR_H */

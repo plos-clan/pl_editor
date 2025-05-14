@@ -655,7 +655,7 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
 }
 
 /* Update syntax highlighting for rows affected by multi-line comments */
-void pleditor_syntax_update_ml_comments(pleditor_state *state, int start_row) {
+void pleditor_syntax_update_multiline(pleditor_state *state, int start_row) {
     if (!state->syntax) return;
 
     /* Update the starting row and all subsequent rows that might be affected */
