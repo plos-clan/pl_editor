@@ -16,7 +16,6 @@ enum pleditor_highlight {
     HL_STRING,
     HL_NUMBER,
     HL_PUNCTUATION,
-    HL_SPECIAL_IDENT,
     HL_FUNC_CLASS_NAME
 };
 

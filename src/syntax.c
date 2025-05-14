@@ -53,7 +53,7 @@ char *PYTHON_HL_keywords[] = {
     "True|", "False|", "None|",
 
     /* Python special identifiers */
-    "self*", "super*", "cls*", "self.*", "super.*",
+    "self|", "super|", "cls|", "self.|", "super.|",
 
     /* Python built-in functions */
     "print|", "len|", "int|", "str|", "float|", "list|", "dict|", "tuple|", "set|",
@@ -350,8 +350,6 @@ int pleditor_syntax_color_to_ansi(int hl) {
             return 31;  /* Red */
         case HL_PUNCTUATION:
             return 33;  /* Yellow */
-        case HL_SPECIAL_IDENT:
-            return 32;  /* Green */
         case HL_FUNC_CLASS_NAME:
             return 36;  /* Cyan */
         default:
@@ -415,6 +413,70 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
     int in_string = 0;
     bool in_comment = (row_idx > 0 && state->rows[row_idx-1].hl) ?
                     state->rows[row_idx-1].hl->hl_multiline_comment : false;
+
+    /* Check for preprocessor directives in C/C++ at the beginning of the line */
+    if (state->syntax && (strcmp(state->syntax->filetype, "c") == 0)) {
+        if (row->render_size > 0 && row->render[0] == '#') {
+            /* Highlight the # character */
+            row->hl->hl[0] = HL_KEYWORD1;
+
+            /* Find the directive word (e.g., define, ifndef) */
+            int j = 1;
+            while (j < row->render_size && isspace(row->render[j])) j++;
+
+            int directive_start = j;
+            while (j < row->render_size && isalpha(row->render[j])) j++;
+
+            /* Highlight the directive */
+            for (int k = directive_start; k < j; k++) {
+                row->hl->hl[k] = HL_KEYWORD1;
+            }
+
+            /* Highlight what follows the directive for specific cases */
+            if (directive_start < j) {
+                int len = j - directive_start;
+                if ((len == 6 && strncmp(&row->render[directive_start], "define", len) == 0) ||
+                    (len == 6 && strncmp(&row->render[directive_start], "ifndef", len) == 0) ||
+                    (len == 5 && strncmp(&row->render[directive_start], "ifdef", len) == 0) ||
+                    (len == 7 && strncmp(&row->render[directive_start], "include", len) == 0) ||
+                    (len == 5 && strncmp(&row->render[directive_start], "endif", len) == 0) ||
+                    (len == 5 && strncmp(&row->render[directive_start], "undef", len) == 0) ||
+                    (len == 6 && strncmp(&row->render[directive_start], "pragma", len) == 0)) {
+
+                    /* Skip whitespace after directive */
+                    while (j < row->render_size && isspace(row->render[j])) j++;
+
+                    /* Highlight the identifier */
+                    int ident_start = j;
+
+                    /* For #include, handle both <...> and "..." forms */
+                    if (len == 7 && j < row->render_size &&
+                        (row->render[j] == '<' || row->render[j] == '"')) {
+                        char end_char = (row->render[j] == '<') ? '>' : '"';
+                        row->hl->hl[j++] = HL_KEYWORD2; /* Highlight the opening < or " */
+
+                        /* Find the closing character */
+                        while (j < row->render_size && row->render[j] != end_char) {
+                            row->hl->hl[j++] = HL_KEYWORD2;
+                        }
+                        if (j < row->render_size) {
+                            row->hl->hl[j++] = HL_KEYWORD2; /* Highlight the closing > or " */
+                        }
+                    } else {
+                        /* For other directives, highlight the identifier */
+                        while (j < row->render_size &&
+                              (is_identifier_char(row->render[j]) || row->render[j] == '.')) {
+                            j++;
+                        }
+
+                        for (int k = ident_start; k < j; k++) {
+                            row->hl->hl[k] = HL_KEYWORD2;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     int i = 0;
     while (i < row->render_size) {
@@ -515,17 +577,16 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
             for (int j = 0; keywords[j]; j++) {
                 int klen = strlen(keywords[j]);
                 bool is_kw2 = keywords[j][klen-1] == '|';
-                bool is_special_ident = keywords[j][klen-1] == '*';
 
-                if (is_kw2 || is_special_ident) klen--;
+                if (is_kw2) klen--;
 
                 /* Special handling for Python identifiers that need context checks */
                 bool is_valid_match = strncmp(&row->render[i], keywords[j], klen) == 0 &&
                                       is_separator(row->render[i + klen]);
 
                 /* Special case for self/cls in method definitions */
-                if (is_special_ident &&
-                    (strcmp(keywords[j], "self*") == 0 || strcmp(keywords[j], "cls*") == 0)) {
+                if (is_kw2 &&
+                    (strcmp(keywords[j], "self|") == 0 || strcmp(keywords[j], "cls|") == 0)) {
                     /* Look for method definition pattern: def method(self, ... */
                     for (int back = i - 1; back >= 0 && back >= i - 20; back--) {
                         if (row->render[back] == '(' || row->render[back] == ',') {
@@ -546,8 +607,7 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
 
                     /* Apply keyword highlighting */
                     for (int k = 0; k < klen; k++)
-                        row->hl->hl[i+k] = is_special_ident ? HL_SPECIAL_IDENT :
-                                            (is_kw2 ? HL_KEYWORD2 : HL_KEYWORD1);
+                        row->hl->hl[i+k] = is_kw2 ? HL_KEYWORD2 : HL_KEYWORD1;
                     i += klen;
                     found_keyword = true;
                     break;
@@ -567,6 +627,8 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
         if ((isalpha(c) || c == '_') && prev_sep) {
             highlight_function_class(state, row, &i);
         }
+
+        /* Empty - Moved preprocessor directive handling to earlier in the code */
 
         /* Special handling for Python indentation */
         if (state->syntax && strcmp(state->syntax->filetype, "python") == 0) {
