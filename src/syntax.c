@@ -180,8 +180,6 @@ static void highlight_function_class(pleditor_state *state, pleditor_row *row, i
             }
         } else if (strcmp(state->syntax->filetype, "c") == 0 ||
                    strcmp(state->syntax->filetype, "riddle") == 0) {
-            /* C/C++/Riddle: Check for patterns */
-
             /* Class declaration: "class Name" */
             if (*i > 0 && is_separator(line[*i - 1])) {
                 if (*i + 5 < line_len && strncmp(&line[*i], "class ", 6) == 0) {
@@ -193,7 +191,7 @@ static void highlight_function_class(pleditor_state *state, pleditor_row *row, i
                 }
             }
 
-            /* C function definition check: find identifier before ( with possible type and space before */
+            /* C function definition check */
             if (!is_def && *i > 0) {
                 /* Check for function pattern: Look for spaces, then identifier, then ( */
                 for (j = *i; j < line_len && is_identifier_char(line[j]); j++);
@@ -274,32 +272,32 @@ static void highlight_punctuation(pleditor_row *row, int i) {
     /* Check for single character punctuation */
     if (i < row->render_size && is_punctuation(row->render[i])) {
         row->hl->hl[i] = HL_PUNCTUATION;
-        
+
         /* Check for compound operators */
         if (i + 1 < row->render_size) {
             char c1 = row->render[i];
             char c2 = row->render[i + 1];
-            
+
             /* Check for common compound operators where second char is '=' */
             if (c2 == '=' && strchr("+-*/=!&|^<>%", c1) != NULL) {
                 row->hl->hl[i + 1] = HL_PUNCTUATION;
             }
-            
+
             /* Check for increment/decrement operators */
             else if ((c1 == '+' && c2 == '+') || (c1 == '-' && c2 == '-')) {
                 row->hl->hl[i + 1] = HL_PUNCTUATION;
             }
-            
+
             /* Check for shift operators */
             else if ((c1 == '<' && c2 == '<') || (c1 == '>' && c2 == '>')) {
                 row->hl->hl[i + 1] = HL_PUNCTUATION;
             }
-            
+
             /* Check for logical operators */
             else if ((c1 == '&' && c2 == '&') || (c1 == '|' && c2 == '|')) {
                 row->hl->hl[i + 1] = HL_PUNCTUATION;
             }
-            
+
             /* Check for structure dereference operator -> */
             else if (c1 == '-' && c2 == '>') {
                 row->hl->hl[i + 1] = HL_PUNCTUATION;
