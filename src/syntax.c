@@ -13,14 +13,24 @@
 char *C_HL_keywords[] = {
     /* C keywords */
     "switch", "if", "while", "for", "break", "continue", "return", "else",
-    "struct", "union", "typedef", "static", "enum", "case", "#include",
-    "#define", "#ifdef", "#ifndef", "#endif", "#pragma", "volatile",
-    "register", "sizeof", "typedef", "const", "auto",
+    "struct", "union", "typedef", "static", "enum", "case",
+    "#include", "#define", "#ifdef", "#ifndef", "#endif", "#pragma",
+    "volatile", "register", "sizeof", "const", "auto", "do", "goto",
+    "default", "extern", "inline", "restrict",
+
+    /* C++ keywords */
+    "namespace", "public", "private", "protected", "virtual", "friend",
+    "new", "delete", "try", "catch", "throw", "this", "constexpr",
+    "final", "override", "explicit", "using",
 
     /* Types - keyword2 */
     "int|" , "long|", "double|", "float|", "char|", "unsigned|", "signed|",
     "void|", "bool|", "short|", "size_t|", "uint8_t|", "uint16_t|", "uint32_t|",
     "uint64_t|", "int8_t|", "int16_t|", "int32_t|", "int64_t|", "FILE|", "time_t|",
+    "class|", "template|",
+
+    /* Built-in values */
+    "true|", "false|", "NULL|", "nullptr|",
 
     NULL
 };
@@ -37,6 +47,8 @@ char *LUA_HL_keywords[] = {
     /* Lua built-in functions */
     "print|", "pairs|", "ipairs|", "type|", "tonumber|", "tostring|", "require|",
     "table|", "string|", "math|", "os|", "io|", "coroutine|", "error|", "assert|",
+    "pcall|", "xpcall|", "select|", "rawget|", "rawset|", "rawequal|", "rawlen|",
+    "collectgarbage|", "dofile|", "load|", "loadfile|", "next|",
 
     NULL
 };
@@ -53,15 +65,19 @@ char *PYTHON_HL_keywords[] = {
     "True|", "False|", "None|",
 
     /* Python special identifiers */
-    "self|", "super|", "cls|", "self.|", "super.|",
+    "self|", "super|", "cls|",
+
+    /* Python built-in types */
+    "int|", "str|", "float|", "list|", "dict|", "tuple|", "set|", "bool|",
+    "bytes|", "bytearray|", "complex|", "frozenset|", "object|", "type|",
 
     /* Python built-in functions */
-    "print|", "len|", "int|", "str|", "float|", "list|", "dict|", "tuple|", "set|",
-    "range|", "enumerate|", "sorted|", "sum|", "min|", "max|", "abs|", "open|",
-    "type|", "id|", "input|", "format|", "zip|", "map|", "filter|", "any|", "all|",
-    "dir|", "vars|", "locals|", "globals|", "hasattr|", "getattr|", "setattr|",
-    "delattr|", "isinstance|", "issubclass|", "callable|", "property|", "staticmethod|",
-    "classmethod|", "super|", "object|", "iter|", "next|", "reversed|", "exec|", "eval|",
+    "print|", "len|", "range|", "enumerate|", "sorted|", "sum|", "min|", "max|",
+    "abs|", "open|", "id|", "input|", "format|", "zip|", "map|", "filter|",
+    "any|", "all|", "dir|", "vars|", "locals|", "globals|", "hasattr|",
+    "getattr|", "setattr|", "delattr|", "isinstance|", "issubclass|",
+    "callable|", "property|", "staticmethod|", "classmethod|", "iter|",
+    "next|", "reversed|", "exec|", "eval|", "repr|", "round|", "pow|",
 
     NULL
 };
@@ -74,7 +90,7 @@ char *RIDDLE_HL_keywords[] = {
     "static", "const", "public", "protected", "private", "virtual", "operator",
 
     /* Types - keyword2 */
-    "int|" , "long|", "double|", "float|", "char|", "void|", "bool|", "short|",
+    "int|", "long|", "double|", "float|", "char|", "void|", "bool|", "short|",
 
     /* Riddle built-in values */
     "true|", "false|", "null|",
