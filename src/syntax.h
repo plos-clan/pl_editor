@@ -15,7 +15,8 @@ enum pleditor_highlight {
     HL_KEYWORD2,
     HL_STRING,
     HL_NUMBER,
-    HL_MATCHSEARCH
+    HL_PUNCTUATION,
+    HL_SPECIAL_IDENT
 };
 
 /* Data structure for highlighting in a row */

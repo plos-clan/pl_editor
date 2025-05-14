@@ -47,15 +47,24 @@ char *PYTHON_HL_keywords[] = {
     "def", "class", "if", "elif", "else", "while", "for", "in", "try",
     "except", "finally", "with", "as", "import", "from", "pass", "return",
     "break", "continue", "lambda", "yield", "global", "nonlocal", "assert",
-    "raise", "del", "not", "and", "or", "is", "async", "await",
+    "raise", "del", "not", "and", "or", "is", "async", "await", "match", "case",
 
     /* Python built-in values */
     "True|", "False|", "None|",
+
+    /* Python special identifiers */
+    "self*", "super*", "cls*", "self.*", "super.*", "__init__*", "__main__*", "__name__*", "__file__*",
+    "__str__*", "__repr__*", "__eq__*", "__lt__*", "__gt__*", "__add__*", "__sub__*",
+    "__mul__*", "__div__*", "__len__*", "__call__*", "__getitem__*", "__setitem__*",
+    "__delitem__*", "__iter__*", "__next__*", "__enter__*", "__exit__*", "__dict__*",
 
     /* Python built-in functions */
     "print|", "len|", "int|", "str|", "float|", "list|", "dict|", "tuple|", "set|",
     "range|", "enumerate|", "sorted|", "sum|", "min|", "max|", "abs|", "open|",
     "type|", "id|", "input|", "format|", "zip|", "map|", "filter|", "any|", "all|",
+    "dir|", "vars|", "locals|", "globals|", "hasattr|", "getattr|", "setattr|",
+    "delattr|", "isinstance|", "issubclass|", "callable|", "property|", "staticmethod|",
+    "classmethod|", "super|", "object|", "iter|", "next|", "reversed|", "exec|", "eval|",
 
     NULL
 };
@@ -124,8 +133,20 @@ pleditor_syntax HLDB[] = {
 
 /* Is the character a separator */
 static bool is_separator(int c) {
-    return c == '\0' || isspace(c) || c == '\0' ||
-    strchr(",.()+-/*=~%<>[];\\{}:", c) != NULL;
+    return c == '\0' || isspace(c) ||
+    strchr(",.()+-/*=~%<>[];\\{}:\"'", c) != NULL;
+}
+
+/* Is the character a punctuation mark to highlight */
+static bool is_punctuation(int c) {
+    return strchr(",.():;{}[]<>=", c) != NULL;
+}
+
+/* Handle punctuation highlighting */
+static void highlight_punctuation(pleditor_row *row, int i) {
+    if (i < row->render_size && is_punctuation(row->render[i])) {
+        row->hl->hl[i] = HL_PUNCTUATION;
+    }
 }
 
 /* Handle hex, octal, or binary number formats */
@@ -200,8 +221,10 @@ int pleditor_syntax_color_to_ansi(int hl) {
             return 35;  /* Magenta */
         case HL_NUMBER:
             return 31;  /* Red */
-        case HL_MATCHSEARCH:
-            return 34;  /* Blue */
+        case HL_PUNCTUATION:
+            return 33;  /* Yellow */
+        case HL_SPECIAL_IDENT:
+            return 35;  /* Magenta */
         default:
             return 37;  /* White (default) */
     }
@@ -349,9 +372,9 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
             continue;
         }
 
-        /* Handle special case for colon in array slices */
-        if (c == ':' && ((i > 0 && row->hl->hl[i-1] == HL_NUMBER) ||
-            (i+1 < row->render_size && isdigit(row->render[i+1])))) {
+        /* Handle special case for colon in array slices and Python statements */
+        if (c == ':') {
+            row->hl->hl[i] = HL_PUNCTUATION;
             i++;
             prev_sep = true; /* Treat colon as separator */
             continue;
@@ -363,14 +386,39 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
             for (int j = 0; keywords[j]; j++) {
                 int klen = strlen(keywords[j]);
                 bool is_kw2 = keywords[j][klen-1] == '|';
-                if (is_kw2) klen--;
+                bool is_special_ident = keywords[j][klen-1] == '*';
 
-                if (strncmp(&row->render[i], keywords[j], klen) == 0 &&
-                    is_separator(row->render[i + klen])) {
+                if (is_kw2 || is_special_ident) klen--;
+
+                /* Special handling for Python identifiers that need context checks */
+                bool is_valid_match = strncmp(&row->render[i], keywords[j], klen) == 0 &&
+                                      is_separator(row->render[i + klen]);
+
+                /* Special case for self/cls in method definitions */
+                if (is_special_ident &&
+                    (strcmp(keywords[j], "self*") == 0 || strcmp(keywords[j], "cls*") == 0)) {
+                    /* Look for method definition pattern: def method(self, ... */
+                    for (int back = i - 1; back >= 0 && back >= i - 20; back--) {
+                        if (row->render[back] == '(' || row->render[back] == ',') {
+                            /* Found valid context */
+                            break;
+                        }
+                        if (!isspace(row->render[back])) {
+                            /* Found non-whitespace that's not a separator we expect */
+                            if (back == i - 1) {
+                                is_valid_match = false; /* directly adjacent */
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if (is_valid_match) {
 
                     /* Apply keyword highlighting */
                     for (int k = 0; k < klen; k++)
-                        row->hl->hl[i+k] = is_kw2 ? HL_KEYWORD2 : HL_KEYWORD1;
+                        row->hl->hl[i+k] = is_special_ident ? HL_SPECIAL_IDENT :
+                                            (is_kw2 ? HL_KEYWORD2 : HL_KEYWORD1);
                     i += klen;
                     found_keyword = true;
                     break;
@@ -380,6 +428,25 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
             if (found_keyword) {
                 prev_sep = false;
                 continue;
+            }
+        }
+
+        /* Highlight punctuation */
+        highlight_punctuation(row, i);
+
+        /* Special handling for Python indentation */
+        if (state->syntax && strcmp(state->syntax->filetype, "python") == 0) {
+            /* Mark beginning of line whitespace as special in Python */
+            if (i == 0 && isspace(c)) {
+                int indent_end = 0;
+                while (indent_end < row->render_size && isspace(row->render[indent_end])) {
+                    indent_end++;
+                }
+                if (indent_end > 0) {
+                    for (int k = 0; k < indent_end; k++) {
+                        row->hl->hl[k] = HL_NORMAL;
+                    }
+                }
             }
         }
 
