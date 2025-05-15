@@ -629,10 +629,7 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
                 bool is_valid_match = strncmp(&row->render[i], keywords[j], klen) == 0 &&
                                       is_separator(row->render[i + klen]);
 
-                /* Special case for self/cls in method definitions */
-                if (is_kw2 &&
-                    (strcmp(keywords[j], "self|") == 0 || strcmp(keywords[j], "cls|") == 0)) {
-                    /* Look for method definition pattern: def method(self, ... */
+                if (is_kw2) {
                     for (int back = i - 1; back >= 0 && back >= i - 20; back--) {
                         if (row->render[back] == '(' || row->render[back] == ',') {
                             /* Found valid context */
@@ -649,7 +646,6 @@ void pleditor_syntax_update_row(pleditor_state *state, int row_idx) {
                 }
 
                 if (is_valid_match) {
-
                     /* Apply keyword highlighting */
                     for (int k = 0; k < klen; k++)
                         row->hl->hl[i+k] = is_kw2 ? HL_KEYWORD2 : HL_KEYWORD1;
