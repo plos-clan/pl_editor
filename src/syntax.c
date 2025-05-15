@@ -194,8 +194,7 @@ static void highlight_function_class(pleditor_state *state, pleditor_row *row, i
                     kw_len = 9;
                 }
             }
-        } else if (strcmp(state->syntax->filetype, "c") == 0 ||
-                   strcmp(state->syntax->filetype, "riddle") == 0) {
+        } else if (strcmp(state->syntax->filetype, "c") == 0) {
             /* Class declaration: "class Name" */
             if (*i > 0 && is_separator(line[*i - 1])) {
                 if (*i + 5 < line_len && strncmp(&line[*i], "class ", 6) == 0) {
