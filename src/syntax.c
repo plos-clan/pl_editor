@@ -98,6 +98,16 @@ char *RIDDLE_HL_keywords[] = {
     NULL
 };
 
+/* Stamon language keywords */
+char *STAMON_HL_keywords[] = {
+    /* Stamon keywords */"class", "def", "extends", "func",
+	"break", "continue",
+	"if", "else", "while", "for", "in",
+	"return", "sfn", "new", "null", "import",
+	"true", "false",
+    NULL
+};
+
 /* Syntax definitions */
 pleditor_syntax HLDB[] = {
     /* C-like language */
@@ -135,6 +145,16 @@ pleditor_syntax HLDB[] = {
         "riddle",
         (char*[]){"rid", NULL},
         RIDDLE_HL_keywords,
+        "//",     /* Single line comment start */
+        "/*",     /* Multi-line comment start */
+        "*/",     /* Multi-line comment end */
+        0
+    },
+	/* Stamon language */
+    {
+        "stamon",
+        (char*[]){"st", "stm", NULL},
+        STAMON_HL_keywords,
         "//",     /* Single line comment start */
         "/*",     /* Multi-line comment start */
         "*/",     /* Multi-line comment end */
