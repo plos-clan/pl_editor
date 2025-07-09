@@ -61,7 +61,10 @@ To port the editor to another platform:
 
 1. Create a new file in the `src/platform` directory (e.g., `src/platform/your_platform.c`)
 2. Implement all functions declared in `platform.h`
-3. Update the build system to use your platform file
+3. Set your toolchain in `xmake.lua`
+4. Update the build system to use your platform file
+
+> Updated by CLimber-Rong (2025.7)
 
 ## License
 
